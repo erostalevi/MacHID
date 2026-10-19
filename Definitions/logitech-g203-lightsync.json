@@ -1,0 +1,10 @@
+{
+  "id": "logitech-g203-lightsync",
+  "name": "Logitech G203 LIGHTSYNC",
+  "category": "mouse",
+  "usb_ids": ["046d:c092"],
+  "driver": "logitech-gseries",
+  "capabilities": [
+    { "id": "info", "type": "info", "access": "read" }
+  ]
+}

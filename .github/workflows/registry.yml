@@ -1,0 +1,53 @@
+name: Registry
+
+on:
+  pull_request:
+    paths: ["plugins.json", "Schemas/**", "scripts/verify-registry-refs.py"]
+  push:
+    branches: [master]
+    paths: ["plugins.json", "Schemas/**", "scripts/verify-registry-refs.py"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate rules
+        run: swift run machid-validate registry plugins.json
+      - name: Verify refs and manifest hashes exist upstream
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/verify-registry-refs.py plugins.json
+
+  publish:
+    # Signs the index and publishes a registry release that the app auto-updates from.
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest   # OpenSSL 3 is needed for raw Ed25519 signing
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sign plugins.json
+        env:
+          REGISTRY_SIGNING_KEY_PEM: ${{ secrets.REGISTRY_SIGNING_KEY_PEM }}
+        run: |
+          umask 077
+          printf '%s' "$REGISTRY_SIGNING_KEY_PEM" > "$RUNNER_TEMP/registry-key.pem"
+          openssl pkeyutl -sign -rawin -inkey "$RUNNER_TEMP/registry-key.pem" -in plugins.json -out plugins.json.sig
+          openssl pkey -in "$RUNNER_TEMP/registry-key.pem" -pubout -out "$RUNNER_TEMP/registry-pub.pem"
+          openssl pkeyutl -verify -rawin -pubin -inkey "$RUNNER_TEMP/registry-pub.pem" -in plugins.json -sigfile plugins.json.sig
+          rm -f "$RUNNER_TEMP/registry-key.pem" "$RUNNER_TEMP/registry-pub.pem"
+          sha256sum plugins.json plugins.json.sig > SHA256SUMS
+      - name: Publish registry release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="registry-$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          gh release create "$tag" plugins.json plugins.json.sig SHA256SUMS \
+            --target "$GITHUB_SHA" --title "Registry $tag" \
+            --notes "Signed plugin index. Not an app release." --latest=false

@@ -1,0 +1,10 @@
+{
+  "id": "logitech-brio-100",
+  "name": "Logitech Brio 100",
+  "category": "camera",
+  "usb_ids": ["046d:094c"],
+  "driver": "uvc",
+  "capabilities": [
+    { "id": "info", "type": "info", "access": "read" }
+  ]
+}

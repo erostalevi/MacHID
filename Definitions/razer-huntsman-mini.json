@@ -1,0 +1,10 @@
+{
+  "id": "razer-huntsman-mini",
+  "name": "Razer Huntsman Mini",
+  "category": "keyboard",
+  "usb_ids": ["1532:0257"],
+  "driver": "razer",
+  "capabilities": [
+    { "id": "info", "type": "info", "access": "read" }
+  ]
+}

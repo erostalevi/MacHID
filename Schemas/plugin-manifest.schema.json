@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MacHID plugin manifest (manifest.json at the plugin repo root)",
+  "type": "object",
+  "required": ["id", "name", "version", "license", "author", "core_api", "devices", "permissions"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$" },
+    "name": { "type": "string" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "license": { "type": "string" },
+    "author": { "type": "string" },
+    "core_api": {
+      "type": "object", "required": ["min", "max"], "additionalProperties": false,
+      "properties": { "min": { "type": "integer", "minimum": 1 }, "max": { "type": "integer", "minimum": 1 } }
+    },
+    "devices": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[0-9a-f]{4}:[0-9a-f]{4}$" } },
+    "driver": { "type": "string", "description": "Entry script for a code driver; omit for data-only plugins." },
+    "permissions": {
+      "type": "object", "required": ["transport", "writes"], "additionalProperties": false,
+      "properties": {
+        "transport": { "enum": ["hid", "uvc"] },
+        "interfaces": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "report_ids": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 } },
+        "writes": { "enum": ["none", "volatile", "persistent"] }
+      }
+    },
+    "i18n": { "type": "object" }
+  }
+}

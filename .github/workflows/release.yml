@@ -1,0 +1,106 @@
+name: Release
+
+# Every push to master that touches code produces a release. Docs-only and registry-only
+# changes are excluded (the registry has its own workflow, registry.yml).
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "plugins.json"
+      - "Schemas/**"
+
+permissions:
+  contents: read
+
+# Queue releases, never cancel one midway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    environment: release   # holds the signing and notarization secrets
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        run: |
+          base="$(tr -d '[:space:]' < VERSION)"
+          echo "version=${base}.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if tag already exists
+        id: guard
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${{ steps.version.outputs.version }}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        if: steps.guard.outputs.exists != 'true'
+        run: swift test
+
+      - name: Build release binaries
+        if: steps.guard.outputs.exists != 'true'
+        run: swift build -c release --arch arm64
+
+      - name: Import signing certificate
+        if: steps.guard.outputs.exists != 'true'
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          keychain_password="$(uuidgen)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain-db
+
+      - name: Sign and notarize CLI
+        if: steps.guard.outputs.exists != 'true'
+        env:
+          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+          NOTARY_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: |
+          mkdir -p dist
+          cp .build/arm64-apple-macosx/release/machid dist/machid
+          codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" dist/machid
+          codesign --verify --strict --verbose=2 dist/machid
+          (cd dist && ditto -c -k --keepParent machid "machid-${{ steps.version.outputs.version }}-macos-arm64.zip")
+          echo "$NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          xcrun notarytool submit "dist/machid-${{ steps.version.outputs.version }}-macos-arm64.zip" \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
+          rm -f "$RUNNER_TEMP/notary.p8"
+          (cd dist && shasum -a 256 *.zip > SHA256SUMS)
+          rm dist/machid
+
+      # M4/M6b will add here: app bundle build, DMG, Sparkle EdDSA signature and appcast.xml,
+      # and the Homebrew cask update. See docs/changes/M0-skeleton.md.
+
+      - name: Create GitHub release
+        if: steps.guard.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" dist/* \
+            --target "${{ github.sha }}" \
+            --title "MacHID ${{ steps.version.outputs.version }}" \
+            --generate-notes
+
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
