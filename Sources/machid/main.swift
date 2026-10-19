@@ -8,6 +8,9 @@ let usage = """
 usage:
   machid list [--all] [--json] [--definitions <dir>]
   machid info <vvvv:pppp> [--json] [--definitions <dir>]
+  machid get <vvvv:pppp> <capability>
+  machid set <vvvv:pppp> brightness <0-100>
+  machid set <vvvv:pppp> backlight <RRGGBB|off>
   machid --version
 """
 
@@ -88,8 +91,46 @@ if command == "--version" {
 
 let inventory = DeviceInventory(enumerator: IOKitDeviceEnumerator(), catalog: loadCatalog(explicit: definitionsPath))
 
+func parseColor(_ text: String) -> RGBColor? {
+    let digits = text.hasPrefix("#") ? String(text.dropFirst()) : text
+    guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+    return RGBColor(r: UInt8(value >> 16 & 0xFF), g: UInt8(value >> 8 & 0xFF), b: UInt8(value & 0xFF))
+}
+
+func describe(_ value: SettingValue) -> String {
+    switch value {
+    case .bool(let flag): "\(flag)"
+    case .int(let number): "\(number)"
+    case .color(let color): String(format: "#%02X%02X%02X", color.r, color.g, color.b)
+    case .text(let text): text
+    }
+}
+
+let control = DeviceControl(inventory: inventory, connector: SystemDeviceConnector())
+
 do {
     switch command {
+    case "get":
+        guard args.count == 3, let id = USBID(string: args[1]) else { fail("get needs <vvvv:pppp> <capability>\n" + usage, code: 2) }
+        print(describe(try await control.read(id, capability: args[2])))
+
+    case "set":
+        guard args.count == 4, let id = USBID(string: args[1]) else { fail("set needs <vvvv:pppp> <capability> <value>\n" + usage, code: 2) }
+        let value: SettingValue
+        switch args[2] {
+        case "brightness":
+            guard let number = Int(args[3]) else { fail("brightness must be a whole number 0-100", code: 2) }
+            value = .int(number)
+        case "backlight":
+            if args[3] == "off" { value = .text("off") }
+            else if let color = parseColor(args[3]) { value = .color(color) }
+            else { fail("backlight must be RRGGBB (hex) or 'off'", code: 2) }
+        default:
+            fail("'\(args[2])' cannot be set from the CLI yet", code: 2)
+        }
+        try await control.write(id, capability: args[2], value: value)
+        print("OK: \(args[2]) = \(describe(value))  (volatile; not saved to the device)")
+
     case "list":
         let items = try inventory.items(includeUnsupported: showAll)
         if json { printJSON(items); break }

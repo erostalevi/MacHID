@@ -74,3 +74,74 @@ private let mouseDefinition = DeviceDefinition(
         #expect(errors.count == 1 && errors[0].hasPrefix("bad.json"))
     }
 }
+
+// MARK: - DeviceControl
+
+private actor RecordingTransport: Transport {
+    func sendFeatureReport(reportID: UInt8, _ data: [UInt8]) async throws {}
+    func getFeatureReport(reportID: UInt8, length: Int) async throws -> [UInt8] { [] }
+}
+
+private actor RecordingDriver: DeviceDriver {
+    nonisolated let familyID = "fake"
+    private(set) var writes: [(String, SettingValue)] = []
+    func read(_ capability: CapabilityDescriptor, using transport: any Transport) async throws -> SettingValue { .int(42) }
+    func write(_ value: SettingValue, to capability: CapabilityDescriptor, using transport: any Transport) async throws {
+        writes.append((capability.id, value))
+    }
+}
+
+private struct FakeConnector: DeviceConnector {
+    let driver: RecordingDriver
+    func connect(to device: DiscoveredDevice, definition: DeviceDefinition) async throws -> (driver: any DeviceDriver, transport: any Transport) {
+        (driver, RecordingTransport())
+    }
+}
+
+private let controllable = DeviceDefinition(
+    id: "kbd", name: "Kbd", category: .keyboard, usbIds: [mouseID], driver: "fake",
+    capabilities: [
+        CapabilityDescriptor(id: "info", type: .info, access: .read),
+        CapabilityDescriptor(id: "brightness", type: .brightness, access: .writeVolatile, parameters: .init(min: 0, max: 100, step: 1)),
+        CapabilityDescriptor(id: "dpi", type: .dpi, access: .writeVolatile, parameters: .init(min: 200, max: 1000, step: 100)),
+        CapabilityDescriptor(id: "saved", type: .profileSlots, access: .writePersistent),
+        CapabilityDescriptor(id: "backlight", type: .lightingZone, access: .writeVolatile,
+                             parameters: .init(zones: [LightingZone(id: "z", modes: ["static", "off"])])),
+    ])
+
+@Suite struct DeviceControlTests {
+    private func make() -> (DeviceControl, RecordingDriver) {
+        let driver = RecordingDriver()
+        let inventory = DeviceInventory(
+            enumerator: FakeEnumerator(devices: [DiscoveredDevice(usbId: mouseID, name: "Kbd"), DiscoveredDevice(usbId: hubID, name: "Hub")]),
+            catalog: DefinitionCatalog(definitions: [controllable]))
+        return (DeviceControl(inventory: inventory, connector: FakeConnector(driver: driver)), driver)
+    }
+
+    @Test func readGoesThroughDriver() async throws {
+        #expect(try await make().0.read(mouseID, capability: "brightness") == .int(42))
+    }
+
+    @Test func validWriteReachesDriver() async throws {
+        let (control, driver) = make()
+        try await control.write(mouseID, capability: "brightness", value: .int(80))
+        try await control.write(mouseID, capability: "backlight", value: .color(RGBColor(r: 1, g: 2, b: 3)))
+        try await control.write(mouseID, capability: "backlight", value: .text("off"))
+        #expect(await driver.writes.count == 3)
+    }
+
+    @Test func rejectedWritesNeverReachDriver() async {
+        let (control, driver) = make()
+        await #expect(throws: ControlError.outOfRange("101 > 100")) { try await control.write(mouseID, capability: "brightness", value: .int(101)) }
+        await #expect(throws: ControlError.outOfRange("-1 < 0")) { try await control.write(mouseID, capability: "brightness", value: .int(-1)) }
+        await #expect(throws: ControlError.self) { try await control.write(mouseID, capability: "dpi", value: .int(250)) }
+        await #expect(throws: ControlError.notWritable("info")) { try await control.write(mouseID, capability: "info", value: .int(1)) }
+        await #expect(throws: ControlError.persistentWriteBlocked("saved")) { try await control.write(mouseID, capability: "saved", value: .int(1)) }
+        await #expect(throws: ControlError.unknownCapability("nope")) { try await control.write(mouseID, capability: "nope", value: .int(1)) }
+        await #expect(throws: ControlError.self) { try await control.write(mouseID, capability: "backlight", value: .text("rainbow")) }
+        await #expect(throws: ControlError.self) { try await control.write(mouseID, capability: "brightness", value: .text("x")) }
+        await #expect(throws: ControlError.unsupportedDevice(hubID)) { try await control.write(hubID, capability: "brightness", value: .int(1)) }
+        await #expect(throws: ControlError.deviceNotFound(USBID(vendor: 9, product: 9))) { try await control.read(USBID(vendor: 9, product: 9), capability: "info") }
+        #expect(await driver.writes.isEmpty)
+    }
+}
