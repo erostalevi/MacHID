@@ -119,7 +119,7 @@ extension PreviewSupport {
         let model = PluginsModel(registryService: RegistryService(source: NoSource(), verifier: NoVerifier(), cache: NoCache()),
                                  installer: PluginInstaller(directory: FileManager.default.temporaryDirectory, fetcher: NoFetcher(), extractor: NoExtractor(), sha256: { _ in "" }),
                                  store: NoStore(), pluginsRoot: FileManager.default.temporaryDirectory, discoveryAvailable: true,
-                                 defaults: UserDefaults(suiteName: "machid.preview")!, catalogChanged: { _ in }, unsupportedDevices: { [] })
+                                 defaults: UserDefaults(suiteName: "machid.preview")!, catalogChanged: { _, _ in }, unsupportedDevices: { [] })
         let permissions = PluginPermissions(transport: .hid, writes: .volatile)
         let entries = [
             RegistryEntry(id: "razer-blackwidow-v3", repo: "https://github.com/example/razer-blackwidow-v3", ref: String(repeating: "a", count: 40), manifestSha256: String(repeating: "b", count: 64),

@@ -292,7 +292,7 @@ public final class AppModel {
     public func setPluginDefinitions(_ definitions: [DeviceDefinition], artworkRoots: [String: URL] = [:]) async {
         pluginRoots = artworkRoots
         artworkCache.removeAll()
-        let catalog = baseCatalog.adding(definitions, artworkRoots: pluginArtworkRoots(definitions))
+        let catalog = baseCatalog.adding(definitions, artworkRoots: pluginRoots)
         inventory = DeviceInventory(enumerator: enumerator, catalog: catalog)
         control = DeviceControl(inventory: inventory, connector: connector)
         // A device whose definition changed gets its controls rebuilt; the rest are left alone.
@@ -302,8 +302,6 @@ public final class AppModel {
         devices.removeAll { entry in changed.contains { $0.id == entry.id } }
         await refreshDevices()
     }
-
-    private func pluginArtworkRoots(_ definitions: [DeviceDefinition]) -> [String: URL] { pluginRoots }
 
     /// Attached devices that no definition covers: what plugin recommendations are about.
     public func unsupportedDeviceIDs() async -> [USBID] {

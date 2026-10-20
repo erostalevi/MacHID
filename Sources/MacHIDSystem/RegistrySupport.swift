@@ -114,8 +114,9 @@ public actor FileInstalledPluginStore: InstalledPluginStore {
 /// Definitions shipped by installed plugins. Each file is checked again when it is loaded: the folder is user data and
 /// could have been edited since installation.
 public enum PluginDefinitions {
-    public static func load(_ plugins: [InstalledPlugin], root: URL) -> (definitions: [DeviceDefinition], problems: [String]) {
+    public static func load(_ plugins: [InstalledPlugin], root: URL) -> (definitions: [DeviceDefinition], artworkRoots: [String: URL], problems: [String]) {
         var definitions: [DeviceDefinition] = []
+        var artworkRoots: [String: URL] = [:]
         var problems: [String] = []
         for plugin in plugins {
             // installed.json is user data: do not follow a path that was edited to point elsewhere.
@@ -131,11 +132,12 @@ public enum PluginDefinitions {
                     try definition.validate()
                     guard definition.usbIds.allSatisfy({ plugin.devices.contains($0) }) else { throw DefinitionError.noUSBIDs }
                     definitions.append(definition)
+                    artworkRoots[definition.id] = folder
                 } catch {
                     problems.append("\(plugin.id)/\(path): \(error)")
                 }
             }
         }
-        return (definitions, problems)
+        return (definitions, artworkRoots, problems)
     }
 }

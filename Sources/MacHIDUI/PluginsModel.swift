@@ -30,7 +30,7 @@ public final class PluginsModel {
     @ObservationIgnored private let store: any InstalledPluginStore
     @ObservationIgnored private let pluginsRoot: URL
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let catalogChanged: @MainActor ([DeviceDefinition]) async -> Void
+    @ObservationIgnored private let catalogChanged: @MainActor ([DeviceDefinition], [String: URL]) async -> Void
     @ObservationIgnored private let unsupportedDevices: @MainActor () async -> [USBID]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
@@ -38,7 +38,7 @@ public final class PluginsModel {
 
     public init(registryService: RegistryService, installer: PluginInstaller, store: any InstalledPluginStore, pluginsRoot: URL,
                 discoveryAvailable: Bool, defaults: UserDefaults = .standard,
-                catalogChanged: @escaping @MainActor ([DeviceDefinition]) async -> Void,
+                catalogChanged: @escaping @MainActor ([DeviceDefinition], [String: URL]) async -> Void,
                 unsupportedDevices: @escaping @MainActor () async -> [USBID]) {
         self.registryService = registryService
         self.installer = installer
@@ -98,7 +98,7 @@ public final class PluginsModel {
     private func publishDefinitions() async {
         let result = PluginDefinitions.load(installed, root: pluginsRoot)
         if !result.problems.isEmpty { banner = "Some plugin definitions were ignored: \(result.problems.first ?? "")" }
-        await catalogChanged(result.definitions)
+        await catalogChanged(result.definitions, result.artworkRoots)
     }
 
     // MARK: Changing
@@ -191,7 +191,7 @@ extension PluginsModel {
         let installer = PluginInstaller(directory: root, fetcher: GitHubArchiveFetcher(), extractor: TarExtractor(), sha256: SHA256Hex.of)
         return PluginsModel(registryService: service, installer: installer, store: FileInstalledPluginStore(), pluginsRoot: root,
                             discoveryAvailable: verifier != nil,
-                            catalogChanged: { [weak app] definitions in await app?.setPluginDefinitions(definitions) },
+                            catalogChanged: { [weak app] definitions, roots in await app?.setPluginDefinitions(definitions, artworkRoots: roots) },
                             unsupportedDevices: { [weak app] in await app?.unsupportedDeviceIDs() ?? [] })
     }
 }

@@ -120,7 +120,7 @@ public actor PluginInstaller {
 
         let destination = directory.appendingPathComponent(entry.id, isDirectory: true).appendingPathComponent(entry.ref, isDirectory: true)
         do {
-            try store(manifestIn: root, definitions: definitions.map(\.path), into: destination)
+            try store(manifestIn: root, files: definitions.flatMap { [$0.path] + ($0.definition.artwork.map { [$0] } ?? []) }, into: destination)
         } catch {
             throw PluginError.storage("\(error)")
         }
@@ -195,6 +195,17 @@ public actor PluginInstaller {
                 if let stray = definition.usbIds.first(where: { !manifest.devices.contains($0) }) {
                     throw PluginError.invalidDefinition(file: path, reason: "uses \(stray), which the manifest does not declare")
                 }
+                if let artwork = definition.artwork {
+                    let file = root.appendingPathComponent(artwork)
+                    let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                    guard values?.isRegularFile == true, values?.isSymbolicLink != true,
+                          let data = try? Data(contentsOf: file) else {
+                        throw PluginError.invalidDefinition(file: path, reason: "artwork \(artwork) is missing or not a regular file")
+                    }
+                    let problems = SVGSafety.validate(data)
+                    guard problems.isEmpty else { throw PluginError.invalidDefinition(file: artwork, reason: problems.joined(separator: "; ")) }
+                    guard ArtworkLayout.parse(data) != nil else { throw PluginError.invalidDefinition(file: artwork, reason: "no usable view box") }
+                }
                 result.append((path, definition))
             } catch let error as PluginError {
                 throw error
@@ -205,14 +216,14 @@ public actor PluginInstaller {
         return result
     }
 
-    private func store(manifestIn root: URL, definitions: [String], into destination: URL) throws {
+    private func store(manifestIn root: URL, files: [String], into destination: URL) throws {
         let parent = destination.deletingLastPathComponent()
         try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
         let temporary = parent.appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
         do {
             try fileManager.copyItem(at: root.appendingPathComponent("manifest.json"), to: temporary.appendingPathComponent("manifest.json"))
-            for path in definitions {
+            for path in files {
                 let target = temporary.appendingPathComponent(path)
                 try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try fileManager.copyItem(at: root.appendingPathComponent(path), to: target)

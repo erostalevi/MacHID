@@ -93,7 +93,7 @@ private func makeModel(hosting: Hosting, registry: Registry, discovery: Bool = t
     let installer = PluginInstaller(directory: root, fetcher: FakeFetcher(), extractor: FakeExtractor(hosting: hosting), sha256: SHA256Hex.of)
     let model = PluginsModel(registryService: service, installer: installer, store: store, pluginsRoot: root, discoveryAvailable: discovery,
                              defaults: UserDefaults(suiteName: "machid-plugins-\(UUID().uuidString)")!,
-                             catalogChanged: { catalog.definitions.append($0.map(\.id)) }, unsupportedDevices: { [device] })
+                             catalogChanged: { definitions, _ in catalog.definitions.append(definitions.map(\.id)) }, unsupportedDevices: { [device] })
     return (model, source, catalog, store)
 }
 
