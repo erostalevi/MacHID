@@ -22,12 +22,14 @@ let package = Package(
         .target(name: "MacHIDLogitech", dependencies: ["MacHIDDomain"]),
         // Generic USB Video Class driver: camera controls via class requests.
         .target(name: "MacHIDUVC", dependencies: ["MacHIDDomain"]),
+        // Adapter: Quartz events (remapping tap, synthetic input), shell and app launching for macros.
+        .target(name: "MacHIDQuartz", dependencies: ["MacHIDDomain", "MacHIDApplication"]),
         // Adapter: IOKit enumeration. The only place that imports IOKit.
         .target(name: "MacHIDIOKit", dependencies: ["MacHIDDomain"], linkerSettings: [.linkedFramework("IOUSBHost")]),
         // Composition: picks the driver family and transport for a device. Shared by the CLI and the app.
         .target(name: "MacHIDSystem", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDRazer", "MacHIDLogitech", "MacHIDUVC"]),
         // SwiftUI models and views (menu bar panel and main window). Logic lives here so it can be tested.
-        .target(name: "MacHIDUI", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
+        .target(name: "MacHIDUI", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem", "MacHIDQuartz"]),
         .executableTarget(name: "MacHIDApp", dependencies: ["MacHIDUI"]),
         // Design review tool: renders the views to PNG files offscreen.
         .executableTarget(name: "MacHIDSnapshots", dependencies: ["MacHIDUI", "MacHIDDomain"]),
@@ -39,6 +41,7 @@ let package = Package(
         .testTarget(name: "MacHIDUVCTests", dependencies: ["MacHIDUVC", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUITests", dependencies: ["MacHIDUI", "MacHIDDomain", "MacHIDApplication"]),
         .testTarget(name: "MacHIDSystemTests", dependencies: ["MacHIDSystem", "MacHIDApplication", "MacHIDDomain"]),
+        .testTarget(name: "MacHIDQuartzTests", dependencies: ["MacHIDQuartz", "MacHIDApplication", "MacHIDDomain"]),
         .testTarget(name: "MacHIDApplicationTests", dependencies: ["MacHIDApplication", "MacHIDDomain"]),
     ]
 )

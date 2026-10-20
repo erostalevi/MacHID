@@ -29,8 +29,8 @@ public protocol Launcher: Sendable {
 }
 
 /// What a run leaves in the log. It never holds typed text, commands, URLs or paths.
-public struct MacroLogEntry: Equatable, Sendable {
-    public enum Outcome: Equatable, Sendable {
+public struct MacroLogEntry: Equatable, Sendable, Codable {
+    public enum Outcome: Equatable, Sendable, Codable {
         case completed
         case refused(MacroRunner.Refusal)
         case failed(String)
@@ -43,6 +43,15 @@ public struct MacroLogEntry: Equatable, Sendable {
     public var outcome: Outcome
     public var stepKinds: [String]
     public var shellExitCodes: [Int32]
+
+    public init(macroID: String, macroName: String, date: Date, outcome: Outcome, stepKinds: [String], shellExitCodes: [Int32]) {
+        self.macroID = macroID
+        self.macroName = macroName
+        self.date = date
+        self.outcome = outcome
+        self.stepKinds = stepKinds
+        self.shellExitCodes = shellExitCodes
+    }
 }
 
 public protocol MacroLog: Sendable {
@@ -70,7 +79,7 @@ public enum ElevationGuard {
 
 /// Runs macros. Everything that could surprise the user is checked here, before any step runs.
 public actor MacroRunner {
-    public enum Refusal: Equatable, Sendable {
+    public enum Refusal: String, Equatable, Sendable, Codable {
         case tooManySteps
         case tooLong
         case notApproved
