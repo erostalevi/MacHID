@@ -57,8 +57,14 @@ struct KeyboardSimView: View {
         .frame(height: 280)
         .onAppear(perform: startMonitor)
         .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Keyboard illustration"))
+        .accessibilityChildren {
+            ForEach(layout.keys) { key in
+                Button(key.label.isEmpty ? "Space" : key.label) { onSelect(key.id) }
+                    .accessibilityAddTraits(selected == key.id ? .isSelected : [])
+            }
+        }
     }
 
     private func key(at point: CGPoint, unit: CGFloat, origin: CGPoint) -> KeyboardKey? {

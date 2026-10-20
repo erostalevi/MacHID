@@ -5,8 +5,9 @@ A free, open source hub for mouse, keyboard and camera settings on macOS, for ha
 > Status: early development. Works today on a Razer Huntsman Mini, a Logitech G203 LIGHTSYNC and a Logitech Brio 100.
 
 ## What it does
-- Menu bar app (no Dock icon) and a window generated from each device's capabilities, in Liquid Glass on macOS 26 and materials on macOS 14-25.
-- Lighting (colors and built-in effects), brightness, DPI, polling rate, camera image controls and exposure.
+- Menu bar app (no Dock icon) and one fixed-size glass window: the device drawn on the left, its settings on the right. Liquid Glass on macOS 26, a system blur on macOS 14-25.
+- Lighting with the options each device supports (colors, speed, brightness, direction, waveform), per-key painting on the Huntsman Mini, DPI with up to five presets, polling rate, and camera image controls with a live preview.
+- Click a button or key on the drawing to change what it does.
 - Profiles with automatic switching: when a device connects, per app in front, or a default per device.
 - Software remapping of keys and extra mouse buttons, and macros (keys, clicks, text, Shortcuts, shell) with explicit approval for anything powerful.
 - `machid` command line for scripting and diagnostics.

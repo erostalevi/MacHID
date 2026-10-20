@@ -73,6 +73,12 @@ Useful commands: `machid list --all`, `machid info 1532:0257`, `machid get 046d:
 ### Ideas
 More device definitions as data plugins (research each in OpenRazer/libratbag/Solaar and test); per-key Razer lighting; Logitech onboard profile editing (0x8100) with the explicit-save flow; snapshot tests if a renderer that draws glass is found; auto-open Settings pages from menu; `machid` plugin commands.
 
+### M11 (UI redesign and per-device features)
+- Window is fixed-size (1020x680): `DeviceStage` (mouse/keyboard simulation, camera preview) | `DeviceSidebar` (tabs: Lighting, Buttons, Performance, Image, Advanced, Details). Settings has its own sidebar. Records: `docs/changes/M11-*.md`.
+- **The owner's keyboard is the standard Huntsman Mini (1532:0257, name "Razer Huntsman Mini", no analog HID interface).** The owner believes it is analog (used it on Windows). OpenRazer has no actuation/rapid-trigger commands and the analog model is 1532:0282, so none was implemented. If a Huntsman Mini Analog is ever available, capture its HID descriptors (`ioreg -r -c IOHIDInterface -l`) first.
+- Unverified on hardware: per-key frames, Razer breathing/reactive/starlight options, G203 cycle/breathing with period/brightness/waveform, DPI presets cycling, camera preview with UVC writes at the same time, UVC reset to defaults.
+- Ideas not done: tap-hold / double-tap keys in the remap engine (software "rapid tap"), live key-press echo on the drawing (needs the event tap), pointer acceleration (APIs deprecated since 10.12), per-device remap rules (the tap cannot tell devices apart).
+
 ## 6. Decisions already made (do not reopen without a reason)
 - Swift native, macOS 14+, Liquid Glass via `GlassSurface` (guarded by `#if compiler(>=6.2)` and `#available(macOS 26)`; material fallback; opaque with Reduce Transparency).
 - Writes are volatile only. No firmware, no onboard memory writes (`write_persistent` is rejected). Protocol commands must be verified in open sources first (OpenRazer GPL-2.0-or-later, libratbag MIT, Solaar GPL-2.0-or-later, Linux uvcvideo). Record sources in the change record.
