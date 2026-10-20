@@ -6,10 +6,12 @@ import MacHIDDomain
 public struct SettingsView: View {
     @Bindable var model: AppModel
     @Bindable var remap: RemapController
+    @Bindable var plugins: PluginsModel
 
-    public init(model: AppModel, remap: RemapController) {
+    public init(model: AppModel, remap: RemapController, plugins: PluginsModel) {
         self.model = model
         self.remap = remap
+        self.plugins = plugins
     }
 
     public var body: some View {
@@ -20,6 +22,8 @@ public struct SettingsView: View {
                 .tabItem { Label("Remap", systemImage: "keyboard") }
             MacrosView(remap: remap)
                 .tabItem { Label("Macros", systemImage: "play.rectangle") }
+            PluginsView(plugins: plugins)
+                .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
         }
         .frame(minWidth: 620, minHeight: 560)
         .background(.background)

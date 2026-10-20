@@ -109,7 +109,7 @@ jobs:
           NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
         run: |
           version="${{ steps.version.outputs.version }}"
-          OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
+          REGISTRY_PUBLIC_KEY="${{ vars.REGISTRY_PUBLIC_KEY }}" OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
           mkdir -p "$RUNNER_TEMP/dmg" dist
           cp -R "$RUNNER_TEMP/app/MacHID.app" "$RUNNER_TEMP/dmg/"
           ln -s /Applications "$RUNNER_TEMP/dmg/Applications"

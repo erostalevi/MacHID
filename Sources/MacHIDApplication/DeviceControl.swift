@@ -37,7 +37,7 @@ public enum ControlError: Error, Equatable, CustomStringConvertible {
 /// the device definition. Only volatile writes are allowed until the explicit-save flow exists (SPEC §9).
 public struct DeviceControl: Sendable {
     private let inventory: DeviceInventory
-    private let connector: any DeviceConnector
+    public let connector: any DeviceConnector
 
     public init(inventory: DeviceInventory, connector: any DeviceConnector) {
         self.inventory = inventory

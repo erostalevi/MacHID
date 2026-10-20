@@ -40,7 +40,8 @@ func run() {
     }
     let model = PreviewSupport.model(selecting: .mouse)
     let remap = PreviewSupport.remapController()
-    render(SettingsView(model: model, remap: remap).background(backdrop), size: CGSize(width: 620, height: 600), to: out.appendingPathComponent("settings.png"))
+    render(SettingsView(model: model, remap: remap, plugins: PreviewSupport.pluginsModel()).background(backdrop), size: CGSize(width: 620, height: 600), to: out.appendingPathComponent("settings.png"))
+    render(PluginsView(plugins: PreviewSupport.pluginsModel()).background(backdrop), size: CGSize(width: 620, height: 700), to: out.appendingPathComponent("plugins.png"))
     render(RemapView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 560), to: out.appendingPathComponent("remap.png"))
     render(MacrosView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 640), to: out.appendingPathComponent("macros.png"))
     render(MenuPanelView(model: model).background(backdrop), size: CGSize(width: 340, height: 420), to: out.appendingPathComponent("menu-panel.png"))

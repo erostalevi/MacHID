@@ -25,6 +25,12 @@ cp -R "$ROOT/Definitions" "$APP/Contents/Resources/Definitions"
 # String catalog -> .lproj/Localizable.strings (English text is the key, so English needs no file).
 xcrun xcstringstool compile "$ROOT/Resources/Localizable.xcstrings" --output-directory "$APP/Contents/Resources"
 
+# The plugin registry is trusted only with this key (see scripts/make-registry-key.sh). Without it plugin discovery stays off.
+REGISTRY_KEY_PLIST=""
+if [ -n "${REGISTRY_PUBLIC_KEY:-}" ]; then
+  REGISTRY_KEY_PLIST="  <key>MacHIDRegistryPublicKey</key><string>${REGISTRY_PUBLIC_KEY}</string>"
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -43,6 +49,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHumanReadableCopyright</key><string>MacHID is free software (GPLv3).</string>
+${REGISTRY_KEY_PLIST}
 </dict>
 </plist>
 PLIST

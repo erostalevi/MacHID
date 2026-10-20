@@ -39,7 +39,7 @@ let package = Package(
         .testTarget(name: "MacHIDRazerTests", dependencies: ["MacHIDRazer", "MacHIDDomain"]),
         .testTarget(name: "MacHIDLogitechTests", dependencies: ["MacHIDLogitech", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUVCTests", dependencies: ["MacHIDUVC", "MacHIDDomain"]),
-        .testTarget(name: "MacHIDUITests", dependencies: ["MacHIDUI", "MacHIDDomain", "MacHIDApplication"]),
+        .testTarget(name: "MacHIDUITests", dependencies: ["MacHIDUI", "MacHIDDomain", "MacHIDApplication", "MacHIDSystem"]),
         .testTarget(name: "MacHIDSystemTests", dependencies: ["MacHIDSystem", "MacHIDApplication", "MacHIDDomain"]),
         .testTarget(name: "MacHIDQuartzTests", dependencies: ["MacHIDQuartz", "MacHIDApplication", "MacHIDDomain"]),
         .testTarget(name: "MacHIDApplicationTests", dependencies: ["MacHIDApplication", "MacHIDDomain"]),

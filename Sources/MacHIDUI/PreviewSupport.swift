@@ -98,3 +98,38 @@ extension AppModel {
         setPreview(devices: entries, selected: entries.first { $0.definition?.category == category }?.id, profileName: profileName)
     }
 }
+
+extension PreviewSupport {
+    private struct NoSource: RegistrySource { func fetchLatest() async throws -> RegistrySnapshot { throw URLError(.notConnectedToInternet) } }
+    private struct NoVerifier: RegistryVerifier { func isValid(signature: Data, for data: Data) -> Bool { false } }
+    private actor NoCache: RegistryCache {
+        func load() -> RegistrySnapshot? { nil }
+        func save(_ snapshot: RegistrySnapshot) {}
+    }
+    private actor NoStore: InstalledPluginStore {
+        func load() -> [InstalledPlugin] { [] }
+        func save(_ plugins: [InstalledPlugin]) {}
+    }
+    private struct NoFetcher: PluginFetcher { func fetchArchive(repo: String, ref: String) async throws -> URL { throw URLError(.badURL) } }
+    private struct NoExtractor: ArchiveExtractor { func extract(_ archive: URL, into directory: URL) throws {} }
+
+    /// A plugins model with sample entries; it cannot reach the network or change anything.
+    @MainActor
+    public static func pluginsModel() -> PluginsModel {
+        let model = PluginsModel(registryService: RegistryService(source: NoSource(), verifier: NoVerifier(), cache: NoCache()),
+                                 installer: PluginInstaller(directory: FileManager.default.temporaryDirectory, fetcher: NoFetcher(), extractor: NoExtractor(), sha256: { _ in "" }),
+                                 store: NoStore(), pluginsRoot: FileManager.default.temporaryDirectory, discoveryAvailable: true,
+                                 defaults: UserDefaults(suiteName: "machid.preview")!, catalogChanged: { _ in }, unsupportedDevices: { [] })
+        let permissions = PluginPermissions(transport: .hid, writes: .volatile)
+        let entries = [
+            RegistryEntry(id: "razer-blackwidow-v3", repo: "https://github.com/example/razer-blackwidow-v3", ref: String(repeating: "a", count: 40), manifestSha256: String(repeating: "b", count: 64),
+                          license: "GPL-3.0-or-later", category: .keyboard, devices: [USBID(vendor: 0x1532, product: 0x0243)], coreApi: APIRange(min: 1, max: 1), review: .reviewed),
+            RegistryEntry(id: "logitech-g502-hero", repo: "https://github.com/example/logitech-g502", ref: String(repeating: "c", count: 40), manifestSha256: String(repeating: "d", count: 64),
+                          license: "MIT", category: .mouse, devices: [USBID(vendor: 0x046d, product: 0xc08b)], coreApi: APIRange(min: 1, max: 1), review: .community),
+        ]
+        model.setPreview(registry: Registry(plugins: entries), recommendations: [entries[0]],
+                         installed: [InstalledPlugin(id: "acme-webcam", name: "Acme Webcam", version: "1.2.0", ref: String(repeating: "e", count: 40), review: .reviewed, license: "MIT",
+                                                     devices: [USBID(vendor: 0x1234, product: 1)], permissions: permissions, definitionFiles: [], installedAt: Date())])
+        return model
+    }
+}

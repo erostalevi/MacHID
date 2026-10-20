@@ -15,7 +15,7 @@ public struct InventoryItem: Sendable, Codable, Equatable {
 
 /// Use case: what is plugged in, and which of it do we know how to handle.
 public struct DeviceInventory: Sendable {
-    private let enumerator: any DeviceEnumerator
+    public let enumerator: any DeviceEnumerator
     public let catalog: DefinitionCatalog
 
     public init(enumerator: any DeviceEnumerator, catalog: DefinitionCatalog) {

@@ -33,9 +33,14 @@ public final class AppModel {
     public var banner: String?
     /// Set by the app scene so the delegate and the menu can bring the window forward.
     @ObservationIgnored public var openMainWindow: (() -> Void)?
+    /// Called after devices were plugged in or removed (the plugins page re-checks its recommendations).
+    @ObservationIgnored public var onDevicesChanged: (() async -> Void)?
 
-    @ObservationIgnored private let inventory: DeviceInventory
-    @ObservationIgnored private let control: DeviceControl
+    @ObservationIgnored private var inventory: DeviceInventory
+    @ObservationIgnored private var control: DeviceControl
+    @ObservationIgnored private let baseDefinitions: [DeviceDefinition]
+    @ObservationIgnored private let enumerator: any DeviceEnumerator
+    @ObservationIgnored private let connector: any DeviceConnector
     @ObservationIgnored private let repository: any ProfileRepository
     @ObservationIgnored private let automationRepository: any AutomationRepository
     @ObservationIgnored private let defaults: UserDefaults
@@ -49,6 +54,7 @@ public final class AppModel {
     private static let activeProfilesKey = "activeProfileIDs"
 
     public init(inventory: DeviceInventory, control: DeviceControl, repository: any ProfileRepository,
+                enumerator: (any DeviceEnumerator)? = nil, connector: (any DeviceConnector)? = nil,
                 automationRepository: any AutomationRepository = MemoryAutomationRepository(),
                 defaults: UserDefaults = .standard, writeDelay: Duration = .milliseconds(150),
                 deviceChanges: AsyncStream<Void>? = nil,
@@ -56,6 +62,9 @@ public final class AppModel {
         self.deviceChanges = deviceChanges
         self.inventory = inventory
         self.control = control
+        self.baseDefinitions = inventory.catalog.definitions
+        self.enumerator = enumerator ?? inventory.enumerator
+        self.connector = connector ?? control.connector
         self.repository = repository
         self.automationRepository = automationRepository
         self.defaults = defaults
@@ -145,6 +154,7 @@ public final class AppModel {
             await loadValues(for: id)
             await applyOnConnect(deviceID: id)
         }
+        if !added.isEmpty || !removed.isEmpty { await onDevicesChanged?() }
     }
 
     /// Reads every readable capability (and device-reported limits) once, when a device appears.
@@ -260,6 +270,29 @@ public final class AppModel {
             await write(value, capability: spec.id, deviceID: deviceID)
         }
         setActive(profile.id, definitionID: definition.id)
+    }
+
+    // MARK: Plugins
+
+    /// Adds the definitions of installed plugins to the built-in ones and starts using them. Built-in definitions
+    /// win when a plugin claims the same USB ID.
+    public func setPluginDefinitions(_ definitions: [DeviceDefinition]) async {
+        let catalog = DefinitionCatalog(definitions: baseDefinitions + definitions)
+        inventory = DeviceInventory(enumerator: enumerator, catalog: catalog)
+        control = DeviceControl(inventory: inventory, connector: connector)
+        // A device whose definition changed gets its controls rebuilt; the rest are left alone.
+        let changed = devices.filter { entry in
+            catalog.definition(for: entry.usbId)?.id != entry.definition?.id || catalog.definition(for: entry.usbId) != entry.definition
+        }
+        devices.removeAll { entry in changed.contains { $0.id == entry.id } }
+        await refreshDevices()
+    }
+
+    /// Attached devices that no definition covers: what plugin recommendations are about.
+    public func unsupportedDeviceIDs() async -> [USBID] {
+        let inventory = self.inventory
+        let items = (try? await Task.detached { try inventory.items(includeUnsupported: true) }.value) ?? []
+        return items.filter { !$0.isSupported }.map(\.device.usbId)
     }
 
     // MARK: Automation

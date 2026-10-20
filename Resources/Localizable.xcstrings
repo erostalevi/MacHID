@@ -1496,6 +1496,391 @@
           }
         }
       }
+    },
+    "Plugins": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugins"
+          }
+        }
+      }
+    },
+    "Check now": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar ahora"
+          }
+        }
+      }
+    },
+    "Update reviewed plugins automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar automáticamente los plugins revisados"
+          }
+        }
+      }
+    },
+    "Only plugins reviewed by the maintainers, and only when their permissions and license did not change. Everything else asks first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo los plugins revisados por los mantenedores, y solo si sus permisos y licencia no cambiaron. Todo lo demás pregunta antes."
+          }
+        }
+      }
+    },
+    "Checking…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando…"
+          }
+        }
+      }
+    },
+    "Not checked yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún sin comprobar"
+          }
+        }
+      }
+    },
+    "Plugin discovery is off": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El descubrimiento de plugins está desactivado"
+          }
+        }
+      }
+    },
+    "This build of MacHID has no registry signing key, so it cannot tell a genuine plugin list from a forged one. Installed plugins keep working.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión de MacHID no tiene clave de firma del registro, así que no puede distinguir una lista genuina de una falsificada. Los plugins instalados siguen funcionando."
+          }
+        }
+      }
+    },
+    "For your devices": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para tus dispositivos"
+          }
+        }
+      }
+    },
+    "These plugins describe devices you have plugged in that MacHID does not know yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos plugins describen dispositivos conectados que MacHID aún no conoce."
+          }
+        }
+      }
+    },
+    "Installed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalados"
+          }
+        }
+      }
+    },
+    "No plugins installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay plugins instalados."
+          }
+        }
+      }
+    },
+    "Removed from registry": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirado del registro"
+          }
+        }
+      }
+    },
+    "Remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar"
+          }
+        }
+      }
+    },
+    "Browse": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explorar"
+          }
+        }
+      }
+    },
+    "Search by name, license or device ID": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por nombre, licencia o ID de dispositivo"
+          }
+        }
+      }
+    },
+    "Nothing to show yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay nada que mostrar."
+          }
+        }
+      }
+    },
+    "No plugins match.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún plugin coincide."
+          }
+        }
+      }
+    },
+    "Reviewed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisado"
+          }
+        }
+      }
+    },
+    "Community": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comunidad"
+          }
+        }
+      }
+    },
+    "Install…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar…"
+          }
+        }
+      }
+    },
+    "Install": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar"
+          }
+        }
+      }
+    },
+    "License": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licencia"
+          }
+        }
+      }
+    },
+    "Devices": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivos"
+          }
+        }
+      }
+    },
+    "Source": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Origen"
+          }
+        }
+      }
+    },
+    "It adds support for these devices by describing them to MacHID's built-in drivers. It cannot run code or read what you type.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añade compatibilidad con estos dispositivos describiéndolos a los controladores incluidos en MacHID. No puede ejecutar código ni leer lo que escribes."
+          }
+        }
+      }
+    },
+    "Community plugin: not reviewed by the maintainers. A wrong description could make your device behave unexpectedly. Install only if you trust the author.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugin de la comunidad: no lo revisaron los mantenedores. Una descripción errónea podría hacer que tu dispositivo se comporte de forma inesperada. Instálalo solo si confías en el autor."
+          }
+        }
+      }
+    },
+    "Reviewed by the maintainers.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisado por los mantenedores."
+          }
+        }
+      }
+    },
+    "Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar"
+          }
+        }
+      }
+    },
+    "Update available": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualización disponible"
+          }
+        }
+      }
+    },
+    "This is a community plugin and is never updated automatically.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es un plugin de la comunidad y nunca se actualiza automáticamente."
+          }
+        }
+      }
+    },
+    "This update needs your approval: its permissions or license may have changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta actualización necesita tu aprobación: sus permisos o su licencia pueden haber cambiado."
+          }
+        }
+      }
+    },
+    "Share a plugin": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir un plugin"
+          }
+        }
+      }
+    },
+    "A plugin is a small public repository that describes a device for MacHID's built-in drivers. Anyone can submit one with a pull request to the registry. It never runs code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un plugin es un pequeño repositorio público que describe un dispositivo para los controladores incluidos en MacHID. Cualquiera puede proponer uno con un pull request al registro. Nunca ejecuta código."
+          }
+        }
+      }
+    },
+    "How to write and submit one": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cómo escribir y enviar uno"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
