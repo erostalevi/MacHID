@@ -30,7 +30,10 @@ Ejecutado por el usuario en Terminal.app con Input Monitoring concedido (desde m
 - `machid get 1532:0257 brightness` → `100` (exit 0).
 
 Esto confirma en un Huntsman Mini real: selección de interfaz por `MaxFeatureReportSize == 90`, envío y lectura de reportes feature de 90 bytes sin ID, CRC, y respuesta correcta a firmware y brillo. - `machid set 1532:0257 brightness 100` (mismo valor) → `OK` (exit 0); relectura → `100`. Confirma que el dispositivo acepta una escritura `0F/04` con estado `successful`. Como el valor no cambió, no prueba por sí sola la conversión de valores intermedios.
-**Pendiente**: `set brightness` con otro valor (p. ej. 50 y volver a 100) y `set backlight` (color/`off`), que cambian la iluminación visible y no se han ejecutado. La conversión 0-100 ↔ 0-255 se confirma de forma indirecta (255 se lee como 100).
+- Brillo 50 y vuelta a 100: `set 50` → `OK`, relectura `50` (la escritura se aplica y el valor intermedio llega al dispositivo). `set 100` → `OK`, pero la relectura inmediata devolvió `50`; en una ejecución posterior el valor era `100` y se mantuvo estable en t+0, t+1 y t+3 s. Conclusión provisional: el dispositivo tarda más de unos milisegundos en reflejar un cambio de brillo, y una lectura inmediata tras escribir puede devolver el valor anterior. No se vio cambio de luz a simple vista (se desconoce si el backlight estaba encendido o con efecto activo).
+**Pendiente**: `set backlight` (color/`off`), que cambia la iluminación visible; confirmar el retardo con lecturas a t+0 tras un `set 50`.
+
+**Recomendación de driver**: tras una escritura, no confiar en una relectura inmediata; si se necesita verificar, esperar ≥ 100 ms (a medir) o leer de nuevo. La conversión 0-100 ↔ 0-255 se confirma de forma indirecta (255 se lee como 100).
 
 ## Riesgos y pendientes
 - Si el firmware responde distinto en macOS (tamaño de reporte o ID de reporte), habrá que ajustar `IOKitHIDTransport` (por ejemplo, si el reporte debe llevar el ID 0 como primer byte).
