@@ -1,7 +1,8 @@
 name: Release
 
-# Every push to master that touches code produces a release. Docs-only and registry-only
-# changes are excluded (the registry has its own workflow, registry.yml).
+# Every push to master that touches code is built and tested. When the signing secrets exist in the
+# `release` environment, it is also signed, notarized and published as a GitHub release (CLI zip + app DMG).
+# Docs-only and registry-only changes are excluded (the registry has its own workflow, registry.yml).
 on:
   push:
     branches: [master]
@@ -25,10 +26,20 @@ jobs:
     environment: release   # holds the signing and notarization secrets
     permissions:
       contents: write
+    env:
+      HAVE_SIGNING_SECRETS: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 != '' && secrets.DEVELOPER_ID_CERT_PASSWORD != '' && secrets.DEVELOPER_ID_IDENTITY != '' && secrets.NOTARY_API_KEY_P8_BASE64 != '' && secrets.NOTARY_API_KEY_ID != '' && secrets.NOTARY_API_ISSUER_ID != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Use the newest Xcode on the runner
+        # The Liquid Glass UI needs the macOS 26 SDK (Xcode 26+); older toolchains build the material fallback.
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          xcodebuild -version
+          swift --version
 
       - name: Compute version
         id: version
@@ -36,7 +47,7 @@ jobs:
           base="$(tr -d '[:space:]' < VERSION)"
           echo "version=${base}.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Skip if tag already exists
+      - name: Skip publishing if the tag already exists
         id: guard
         run: |
           if git rev-parse -q --verify "refs/tags/v${{ steps.version.outputs.version }}" >/dev/null; then
@@ -44,15 +55,17 @@ jobs:
           fi
 
       - name: Test
-        if: steps.guard.outputs.exists != 'true'
         run: swift test
 
       - name: Build release binaries
-        if: steps.guard.outputs.exists != 'true'
         run: swift build -c release --arch arm64
 
+      - name: Signing secrets are not configured
+        if: env.HAVE_SIGNING_SECRETS != 'true'
+        run: echo "::notice::Built and tested only. Add the signing secrets to the 'release' environment to publish a release (see docs/RELEASE.md)."
+
       - name: Import signing certificate
-        if: steps.guard.outputs.exists != 'true'
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
         env:
           CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
           CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
@@ -68,8 +81,8 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain"
           security list-keychains -d user -s "$keychain" login.keychain-db
 
-      - name: Sign and notarize CLI
-        if: steps.guard.outputs.exists != 'true'
+      - name: Sign and notarize the CLI
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
         env:
           SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
           NOTARY_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_P8_BASE64 }}
@@ -85,14 +98,34 @@ jobs:
           xcrun notarytool submit "dist/machid-${{ steps.version.outputs.version }}-macos-arm64.zip" \
             --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
           rm -f "$RUNNER_TEMP/notary.p8"
-          (cd dist && shasum -a 256 *.zip > SHA256SUMS)
           rm dist/machid
 
-      # M4/M6b will add here: app bundle build, DMG, Sparkle EdDSA signature and appcast.xml,
-      # and the Homebrew cask update. See docs/changes/M0-skeleton.md.
+      - name: Build, sign and notarize the app (DMG)
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
+        env:
+          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+          NOTARY_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
+          mkdir -p "$RUNNER_TEMP/dmg" dist
+          cp -R "$RUNNER_TEMP/app/MacHID.app" "$RUNNER_TEMP/dmg/"
+          ln -s /Applications "$RUNNER_TEMP/dmg/Applications"
+          hdiutil create -volname "MacHID" -srcfolder "$RUNNER_TEMP/dmg" -ov -format UDZO "dist/MacHID-${version}.dmg"
+          codesign --force --timestamp --sign "$SIGN_IDENTITY" "dist/MacHID-${version}.dmg"
+          echo "$NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          xcrun notarytool submit "dist/MacHID-${version}.dmg" \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
+          rm -f "$RUNNER_TEMP/notary.p8"
+          xcrun stapler staple "dist/MacHID-${version}.dmg"
+          (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS)
+
+      # Sparkle appcast and the Homebrew cask update arrive with the auto-update milestone (SPEC §15).
 
       - name: Create GitHub release
-        if: steps.guard.outputs.exists != 'true'
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -102,5 +135,5 @@ jobs:
             --generate-notes
 
       - name: Remove signing keychain
-        if: always()
+        if: always() && env.HAVE_SIGNING_SECRETS == 'true'
         run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true

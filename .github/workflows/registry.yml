@@ -30,9 +30,15 @@ jobs:
     environment: release
     permissions:
       contents: write
+    env:
+      HAVE_KEY: ${{ secrets.REGISTRY_SIGNING_KEY_PEM != '' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Signing key is not configured
+        if: env.HAVE_KEY != 'true'
+        run: echo "::notice::Validated only. Add REGISTRY_SIGNING_KEY_PEM to the 'release' environment to publish a signed registry."
       - name: Sign plugins.json
+        if: env.HAVE_KEY == 'true'
         env:
           REGISTRY_SIGNING_KEY_PEM: ${{ secrets.REGISTRY_SIGNING_KEY_PEM }}
         run: |
@@ -44,6 +50,7 @@ jobs:
           rm -f "$RUNNER_TEMP/registry-key.pem" "$RUNNER_TEMP/registry-pub.pem"
           sha256sum plugins.json plugins.json.sig > SHA256SUMS
       - name: Publish registry release
+        if: env.HAVE_KEY == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -21,6 +21,8 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
+      - name: Build the app bundle
+        run: OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" CONFIG=debug scripts/make-app.sh
       - name: Validate bundled definitions
         run: swift run machid-validate definition Definitions/*.json
       - name: Validate plugins.json

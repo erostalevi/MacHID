@@ -15,21 +15,35 @@ struct GlassSurface: ViewModifier {
             content
                 .background(Color(nsColor: .windowBackgroundColor), in: shape)
                 .overlay(shape.strokeBorder(.quaternary))
-        } else if #available(macOS 26.0, *) {
-            content.glassEffect(glass, in: shape)
         } else {
-            content
-                .background(.ultraThinMaterial, in: shape)
-                .overlay { if let tint { shape.fill(tint.opacity(0.12)) } }
+            #if compiler(>=6.2)
+            // The Liquid Glass API only exists in the macOS 26 SDK (Xcode 26, Swift 6.2). Older toolchains
+            // cannot compile it at all, so an `#available` check alone is not enough.
+            if #available(macOS 26.0, *) {
+                content.glassEffect(glass, in: shape)
+            } else {
+                materialFallback(content, shape)
+            }
+            #else
+            materialFallback(content, shape)
+            #endif
         }
     }
 
+    private func materialFallback(_ content: Content, _ shape: RoundedRectangle) -> some View {
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .overlay { if let tint { shape.fill(tint.opacity(0.12)) } }
+    }
+
+    #if compiler(>=6.2)
     @available(macOS 26.0, *)
     private var glass: Glass {
         var glass = Glass.regular
         if let tint { glass = glass.tint(tint.opacity(0.35)) }
         return interactive ? glass.interactive() : glass
     }
+    #endif
 }
 
 extension View {
@@ -44,11 +58,15 @@ struct GlassGroup<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
+        #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: spacing) { content }
         } else {
             content
         }
+        #else
+        content
+        #endif
     }
 }
 
