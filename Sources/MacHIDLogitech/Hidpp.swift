@@ -116,6 +116,20 @@ public struct HidppClient: Sendable {
         return reply[0]
     }
 
+    /// IFeatureSet (feature 0x0001): every feature the device exposes, as (runtime index, feature id, type).
+    /// Read-only. The count does not include the root feature, which is always index 0.
+    public func listFeatures() async throws -> [(index: UInt8, id: UInt16, type: UInt8)] {
+        let setIndex = try await featureIndex(for: HidppFeature.featureSet)
+        let count = try await request(featureIndex: setIndex, function: 0)[0]
+        var features: [(index: UInt8, id: UInt16, type: UInt8)] = [(0, 0x0000, 0)]
+        guard count > 0 else { return features }
+        for index in 1...count {
+            let reply = try await request(featureIndex: setIndex, function: 1, parameters: [index])
+            features.append((index, UInt16(reply[0]) << 8 | UInt16(reply[1]), reply[2]))
+        }
+        return features
+    }
+
     /// IRoot ping: returns the protocol version (major, minor).
     public func protocolVersion() async throws -> (major: UInt8, minor: UInt8) {
         let reply = try await request(featureIndex: 0x00, function: 1, parameters: [0, 0, 0x5A])
@@ -126,6 +140,7 @@ public struct HidppClient: Sendable {
 
 /// Feature ids (from Solaar's public feature table).
 public enum HidppFeature {
+    public static let featureSet: UInt16 = 0x0001
     public static let adjustableDPI: UInt16 = 0x2201
     public static let colorLEDEffects: UInt16 = 0x8070
     public static let rgbEffects: UInt16 = 0x8071

@@ -268,3 +268,31 @@ private func calls(_ transport: FakeHidppTransport) async -> [(feature: UInt8, f
         #expect(await transport.sent.isEmpty)
     }
 }
+
+@Suite struct FeatureListTests {
+    private func device(featureIDs: [UInt16]) -> @Sendable (HidppMessage) -> [(UInt8, [UInt8])] {
+        return { request in
+            func answer(_ parameters: [UInt8]) -> [(UInt8, [UInt8])] { [reply(to: request, parameters: parameters)] }
+            switch (request.featureIndex, request.function) {
+            case (0x00, 0): return request.parameters[0] == 0x00 && request.parameters[1] == 0x01 ? answer([1, 0, 1]) : answer([0, 0, 0])
+            case (1, 0): return answer([UInt8(featureIDs.count - 1)])
+            case (1, 1):
+                let id = featureIDs[Int(request.parameters[0])]
+                return answer([UInt8(id >> 8), UInt8(id & 0xFF), 0])
+            default: return []
+            }
+        }
+    }
+
+    @Test func listsFeaturesIncludingRoot() async throws {
+        // featureIDs[0] is the root; index 1 must be IFeatureSet itself.
+        let transport = FakeHidppTransport(script: device(featureIDs: [0x0000, 0x0001, 0x2201, 0x8100]))
+        let value = try await HidppDriver().read(CapabilityDescriptor(id: "features", type: .info, access: .read), using: transport)
+        #expect(value == .text("0:0000 1:0001 2:2201 3:8100"))
+    }
+
+    @Test func missingFeatureSetIsAnError() async {
+        let transport = FakeHidppTransport(script: { request in [reply(to: request, parameters: [0, 0, 0])] })
+        await #expect(throws: HidppError.featureNotFound(0x0001)) { try await HidppClient(transport: transport, timeout: .milliseconds(200)).listFeatures() }
+    }
+}

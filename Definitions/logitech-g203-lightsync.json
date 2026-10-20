@@ -13,6 +13,11 @@
       "access": "read"
     },
     {
+      "id": "features",
+      "type": "info",
+      "access": "read"
+    },
+    {
       "id": "dpi",
       "type": "dpi",
       "access": "write_volatile",

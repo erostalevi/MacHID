@@ -1,3 +1,4 @@
+import Foundation
 import MacHIDDomain
 
 /// Valid DPI values reported by ADJUSTABLE_DPI function 1: either an explicit list, or a
@@ -66,6 +67,10 @@ public struct HidppDriver: DeviceDriver {
         case "device_mode":
             let index = try await client.featureIndex(for: HidppFeature.colorLEDEffects)
             return .int(Int(try await client.request(featureIndex: index, function: 7)[0]))
+        case "features":
+            // Diagnostic: "index:id" for every feature, e.g. "0:0000 1:0001 9:2201".
+            let features = try await client.listFeatures()
+            return .text(features.map { "\($0.index):" + String(format: "%04x", $0.id) }.joined(separator: " "))
         default:
             throw DriverError.unsupportedCapability(capability.id)
         }
