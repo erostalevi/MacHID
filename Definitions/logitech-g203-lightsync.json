@@ -2,10 +2,52 @@
   "id": "logitech-g203-lightsync",
   "name": "Logitech G203 LIGHTSYNC",
   "category": "mouse",
-  "usb_ids": ["046d:c092"],
+  "usb_ids": [
+    "046d:c092"
+  ],
   "driver": "logitech-gseries",
   "capabilities": [
-    { "id": "info", "type": "info", "access": "read" },
-    { "id": "dpi", "type": "dpi", "access": "read" }
+    {
+      "id": "info",
+      "type": "info",
+      "access": "read"
+    },
+    {
+      "id": "dpi",
+      "type": "dpi",
+      "access": "write_volatile",
+      "parameters": {
+        "min": 200,
+        "max": 8000,
+        "step": 50
+      }
+    },
+    {
+      "id": "device_mode",
+      "type": "device_mode",
+      "access": "write_volatile",
+      "parameters": {
+        "values": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "backlight",
+      "type": "lighting_zone",
+      "access": "write_volatile",
+      "parameters": {
+        "zones": [
+          {
+            "id": "zone0",
+            "modes": [
+              "static",
+              "off"
+            ]
+          }
+        ]
+      }
+    }
   ]
 }

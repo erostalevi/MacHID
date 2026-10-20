@@ -123,16 +123,148 @@ private let infoCapability = CapabilityDescriptor(id: "info", type: .info, acces
         #expect(try await HidppDriver().read(infoCapability, using: transport) == .text("HID++ 4.2"))
     }
 
-    @Test func writesAreDisabled() async {
-        let transport = FakeHidppTransport { _ in [] }
-        await #expect(throws: DriverError.self) { try await HidppDriver().write(.int(800), to: dpiCapability, using: transport) }
-        #expect(await transport.sent.isEmpty)
-    }
-
     @Test func zeroDPIIsRejected() async {
         let transport = FakeHidppTransport { request in
             request.featureIndex == 0 ? [reply(to: request, parameters: [9])] : [reply(to: request, parameters: [0, 0, 0])]
         }
         await #expect(throws: HidppError.self) { try await HidppDriver().read(dpiCapability, using: transport) }
+    }
+}
+
+// MARK: - Simulated mouse for write tests
+
+private let dpiFeature: UInt8 = 9
+private let ledFeature: UInt8 = 5
+
+/// Simulates a mouse with ADJUSTABLE_DPI (index 9) and COLOR_LED_EFFECTS (index 5, one zone).
+private func simulatedMouse(effectIDs: [UInt16] = [0, 1, 3], hostControl: UInt8 = 0, echoDPI: Bool = true,
+                            dpiList: [UInt8]? = nil) -> @Sendable (HidppMessage) -> [(UInt8, [UInt8])] {
+    let list = dpiList ?? [0, 0x00, 0xC8, 0xE0, 0x32, 0x1F, 0x40]   // sensor 0: 200 .. 8000, step 50
+    return { request in
+        func answer(_ parameters: [UInt8]) -> [(UInt8, [UInt8])] { [reply(to: request, parameters: parameters)] }
+        switch (request.featureIndex, request.function) {
+        case (0x00, 0):
+            let id = UInt16(request.parameters[0]) << 8 | UInt16(request.parameters[1])
+            switch id {
+            case 0x2201: return answer([dpiFeature, 0, 1])
+            case 0x8070: return answer([ledFeature, 0, 1])
+            default: return answer([0, 0, 0])
+            }
+        case (dpiFeature, 1): return answer(list)
+        case (dpiFeature, 3):
+            return answer(echoDPI ? [0, request.parameters[1], request.parameters[2]] : [0, 0, 0])
+        case (ledFeature, 0): return answer([1])                                      // one zone
+        case (ledFeature, 1): return answer([0, 0, 1, UInt8(effectIDs.count), 0])     // zone 0, N effects
+        case (ledFeature, 2):
+            let id = effectIDs[Int(request.parameters[1])]
+            return answer([0, request.parameters[1], UInt8(id >> 8), UInt8(id & 0xFF)])
+        case (ledFeature, 7): return answer([hostControl])
+        case (ledFeature, 8), (ledFeature, 3): return answer(request.parameters)
+        default: return []
+        }
+    }
+}
+
+private let backlightCapability = CapabilityDescriptor(id: "backlight", type: .lightingZone, access: .writeVolatile)
+private let modeCapability = CapabilityDescriptor(id: "device_mode", type: .deviceMode, access: .writeVolatile)
+
+private func calls(_ transport: FakeHidppTransport) async -> [(feature: UInt8, function: UInt8, parameters: [UInt8])] {
+    await transport.sent.compactMap { HidppMessage.decode(payload: $0.data) }.map { ($0.featureIndex, $0.function, $0.parameters) }
+}
+
+@Suite struct DPIListTests {
+    @Test func parsesRangeWithStep() {
+        let list = HidppDPIList.parse([0, 0x00, 0xC8, 0xE0, 0x32, 0x1F, 0x40, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        #expect(list.values == [200, 8000] && list.step == 50)
+        #expect(list.contains(200) && list.contains(3200) && list.contains(8000))
+        #expect(!list.contains(3225) && !list.contains(150) && !list.contains(8050))
+    }
+
+    @Test func parsesExplicitList() {
+        let list = HidppDPIList.parse([0, 0x03, 0x20, 0x06, 0x40, 0x0C, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        #expect(list.values == [800, 1600, 3200] && list.step == nil)
+        #expect(list.contains(1600) && !list.contains(1000))
+    }
+}
+
+@Suite struct WriteTests {
+    @Test func dpiWriteSendsBigEndianValueToSensorZero() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse())
+        try await HidppDriver().write(.int(3200), to: dpiCapability, using: transport)
+        let sent = await calls(transport)
+        let set = try #require(sent.last)
+        #expect(set.feature == dpiFeature && set.function == 3)
+        #expect(Array(set.parameters.prefix(3)) == [0, 0x0C, 0x80])
+    }
+
+    @Test func unsupportedDPIIsNeverSent() async {
+        let transport = FakeHidppTransport(script: simulatedMouse())
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.int(3225), to: dpiCapability, using: transport) }
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.int(0), to: dpiCapability, using: transport) }
+        #expect(await calls(transport).allSatisfy { !($0.feature == dpiFeature && $0.function == 3) })
+    }
+
+    @Test func dpiEchoMismatchIsAnError() async {
+        let transport = FakeHidppTransport(script: { request in
+            request.featureIndex == dpiFeature && request.function == 3
+                ? [reply(to: request, parameters: [0, 0x03, 0x20])]
+                : simulatedMouse()(request)
+        })
+        await #expect(throws: HidppError.self) { try await HidppDriver().write(.int(3200), to: dpiCapability, using: transport) }
+    }
+
+    @Test func dpiWriteAcceptsDevicesThatDoNotEcho() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse(echoDPI: false))
+        try await HidppDriver().write(.int(800), to: dpiCapability, using: transport)
+    }
+
+    @Test func staticColorTakesHostControlThenSetsFixedEffectInRAM() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse(effectIDs: [0, 3, 1], hostControl: 0))
+        try await HidppDriver().write(.color(RGBColor(r: 0xFF, g: 0x10, b: 0x20)), to: backlightCapability, using: transport)
+        let sent = await calls(transport)
+        let ledCalls = sent.filter { $0.feature == ledFeature }.map(\.function)
+        #expect(ledCalls == [7, 8, 0, 1, 2, 2, 2, 3])   // read control, take control, zone info, scan 3 effects, set
+        #expect(sent.first { $0.function == 8 }?.parameters.first == 1)
+        let set = try #require(sent.last)
+        // effect id 1 (fixed) is at position 2 in this device's list
+        #expect(Array(set.parameters.prefix(5)) == [0, 2, 0xFF, 0x10, 0x20])
+        #expect(set.parameters[12] == 0)                // persistence flag must stay 0 (RAM only)
+    }
+
+    @Test func alreadyInHostControlSkipsTakeover() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse(hostControl: 1))
+        try await HidppDriver().write(.color(RGBColor(r: 1, g: 2, b: 3)), to: backlightCapability, using: transport)
+        #expect(await calls(transport).allSatisfy { !($0.feature == ledFeature && $0.function == 8) })
+    }
+
+    @Test func offUsesTheDisabledEffect() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse(effectIDs: [1, 0]))
+        try await HidppDriver().write(.text("off"), to: backlightCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(set.function == 3 && set.parameters[0] == 0 && set.parameters[1] == 1)   // disabled is at position 1
+    }
+
+    @Test func missingEffectFailsBeforeSetting() async {
+        let transport = FakeHidppTransport(script: simulatedMouse(effectIDs: [3, 4]))
+        await #expect(throws: DriverError.self) {
+            try await HidppDriver().write(.color(RGBColor(r: 1, g: 1, b: 1)), to: backlightCapability, using: transport)
+        }
+        #expect(await calls(transport).allSatisfy { !($0.feature == ledFeature && $0.function == 3) })
+    }
+
+    @Test func deviceModeReadsAndWrites() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse(hostControl: 1))
+        #expect(try await HidppDriver().read(modeCapability, using: transport) == .int(1))
+        try await HidppDriver().write(.int(0), to: modeCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(set.feature == ledFeature && set.function == 8 && set.parameters[0] == 0)
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.int(2), to: modeCapability, using: transport) }
+    }
+
+    @Test func wrongValueTypesAreRejected() async {
+        let transport = FakeHidppTransport(script: simulatedMouse())
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.text("x"), to: dpiCapability, using: transport) }
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.text("rainbow"), to: backlightCapability, using: transport) }
+        #expect(await transport.sent.isEmpty)
     }
 }
