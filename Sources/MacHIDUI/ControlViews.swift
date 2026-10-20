@@ -50,12 +50,10 @@ struct ControlRow: View {
             .accessibilityLabel(Titles.control(spec.id))
             .accessibilityValue(currentInt == 1 ? Text("On") : Text("Off"))
         case .choice(let values):
-            Picker(selection: Binding(get: { currentInt ?? values.first ?? 0 },
-                                      set: { model.set(.int($0), capability: spec.id, on: device.id) })) {
-                ForEach(values, id: \.self) { Titles.choice($0, control: spec.id).tag($0) }
-            } label: { EmptyView() }
-            .labelsHidden().pickerStyle(.segmented)
-            .accessibilityLabel(Titles.control(spec.id))
+            Segmented(options: values, selection: Binding(get: { currentInt ?? values.first ?? 0 },
+                                                          set: { model.set(.int($0), capability: spec.id, on: device.id) }),
+                      tint: device.accent) { Titles.choice($0, control: spec.id) }
+                .accessibilityLabel(Titles.control(spec.id))
         case .lighting(let modes, let zone):
             LightingControl(modes: modes, zone: zone, value: device.values[spec.id]) {
                 model.set($0, capability: spec.id, on: device.id)

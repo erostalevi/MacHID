@@ -52,7 +52,7 @@ public struct UVCDriver: DeviceDriver {
 
     private enum Request {
         static let setCur: UInt8 = 0x01
-        static let getCur: UInt8 = 0x81, getMin: UInt8 = 0x82, getMax: UInt8 = 0x83, getRes: UInt8 = 0x84
+        static let getCur: UInt8 = 0x81, getMin: UInt8 = 0x82, getMax: UInt8 = 0x83, getRes: UInt8 = 0x84, getDef: UInt8 = 0x87
         static let toDevice: UInt8 = 0x21     // class request, interface recipient
         static let toHost: UInt8 = 0xA1
     }
@@ -121,7 +121,8 @@ public struct UVCDriver: DeviceDriver {
         let low = try await query(Request.getMin, control, unit: unit, descriptor: descriptor, transport: transport)
         let high = try await query(Request.getMax, control, unit: unit, descriptor: descriptor, transport: transport)
         let step = max(1, (try? await query(Request.getRes, control, unit: unit, descriptor: descriptor, transport: transport)) ?? 1)
-        return ValueLimits(min: low, max: high, step: step)
+        let preset = try? await query(Request.getDef, control, unit: unit, descriptor: descriptor, transport: transport)
+        return ValueLimits(min: low, max: high, step: step, defaultValue: preset.flatMap { (low...high).contains($0) ? $0 : nil })
     }
 
     // MARK: Helpers

@@ -34,10 +34,22 @@ func run() {
     UserDefaults.standard.set(true, forKey: "onboarding.completed")   // keep the welcome card out of the window renders
     NSApp.setActivationPolicy(.prohibited)
     let backdrop = Color(nsColor: .windowBackgroundColor)
-    for (name, category) in [("keyboard", DeviceCategory.keyboard), ("mouse", .mouse), ("camera", .camera)] {
-        let model = PreviewSupport.model(selecting: category)
-        render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 1020, height: 680), to: out.appendingPathComponent("window-\(name).png"))
-        render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 1020, height: 680), to: out.appendingPathComponent("window-\(name)-dark.png"), dark: true)
+    let remapForWindows = PreviewSupport.remapController()
+    struct State { let name: String; let category: DeviceCategory; let section: ControlSection; let input: String?; let perKey: Bool }
+    let states = [State(name: "keyboard", category: .keyboard, section: .lighting, input: nil, perKey: false),
+                  State(name: "keyboard-perkey", category: .keyboard, section: .lighting, input: nil, perKey: true),
+                  State(name: "keyboard-buttons", category: .keyboard, section: .buttons, input: "esc", perKey: false),
+                  State(name: "mouse", category: .mouse, section: .lighting, input: nil, perKey: false),
+                  State(name: "mouse-buttons", category: .mouse, section: .buttons, input: "back", perKey: false),
+                  State(name: "mouse-performance", category: .mouse, section: .performance, input: nil, perKey: false),
+                  State(name: "camera", category: .camera, section: .image, input: nil, perKey: false)]
+    for state in states {
+        let model = PreviewSupport.model(selecting: state.category)
+        model.selectedSection = state.section
+        model.selectedInput = state.input
+        if state.perKey, let id = model.selectedDevice?.id { model.setPerKey(true, for: id) }
+        render(MainWindowView(model: model, remap: remapForWindows).background(backdrop), size: CGSize(width: 1020, height: 680), to: out.appendingPathComponent("window-\(state.name).png"))
+        render(MainWindowView(model: model, remap: remapForWindows).background(backdrop), size: CGSize(width: 1020, height: 680), to: out.appendingPathComponent("window-\(state.name)-dark.png"), dark: true)
     }
     let model = PreviewSupport.model(selecting: .mouse)
     let remap = PreviewSupport.remapController()

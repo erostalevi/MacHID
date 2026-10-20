@@ -23,7 +23,7 @@ struct KeyboardSimView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let unit = min((proxy.size.width - 8) / layout.width, 52)
+            let unit = min((proxy.size.width - 48) / layout.width, 52)
             let boardWidth = layout.width * unit, boardHeight = layout.height * unit
             let origin = CGPoint(x: (proxy.size.width - boardWidth) / 2, y: (proxy.size.height - boardHeight) / 2)
             TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !effect.isAnimated || reduceMotion || activeState == .inactive)) { timeline in

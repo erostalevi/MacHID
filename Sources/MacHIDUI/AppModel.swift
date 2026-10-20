@@ -260,6 +260,23 @@ public final class AppModel {
         await checkBatteryAlert(deviceID)
     }
 
+    // MARK: Reset
+
+    /// Puts a camera's image controls back to what the camera ships with: its own default for every range, and automatic
+    /// exposure and white balance.
+    public func resetImage(for deviceID: String) {
+        guard let entry = devices.first(where: { $0.id == deviceID }) else { return }
+        for spec in entry.specs where spec.section == .image {
+            switch spec.kind {
+            case .slider:
+                if let preset = entry.limits[spec.id]?.defaultValue { set(.int(preset), capability: spec.id, on: deviceID) }
+            case .toggle where spec.id.hasSuffix("_auto"):
+                set(.int(1), capability: spec.id, on: deviceID)
+            default: break
+            }
+        }
+    }
+
     // MARK: Matching lighting
 
     /// Copies the lighting color of one device to every other device that can show a static color.

@@ -162,7 +162,7 @@ private func capability(_ id: String) -> CapabilityDescriptor { CapabilityDescri
     @Test func rangeControlsReportTheCamerasOwnLimits() async throws {
         let camera = FakeCamera(answer: brightnessAnswers)
         let limits = try await UVCDriver().limits(for: capability("brightness"), using: camera)
-        #expect(limits == ValueLimits(min: -64, max: 64, step: 1))
+        #expect(limits?.min == -64 && limits?.max == 64 && limits?.step == 1)
     }
 
     @Test func flagsAndEnumerationsHaveNoDeviceLimits() async throws {
@@ -216,11 +216,39 @@ private func capability(_ id: String) -> CapabilityDescriptor { CapabilityDescri
 
     @Test func exposureTimeUsesFourByteLimitsAndValues() async throws {
         let transport = camera()
-        #expect(try await UVCDriver().limits(for: capability("exposure_time"), using: transport) == ValueLimits(min: 1, max: 200_000, step: 1))
+        #expect(try await UVCDriver().limits(for: capability("exposure_time"), using: transport) .map { [$0.min, $0.max, $0.step] } == [1, 200_000, 1])
         #expect(try await UVCDriver().read(capability("exposure_time"), using: transport) == .int(500))
         try await UVCDriver().write(.int(1000), to: capability("exposure_time"), using: transport)
         let write = try #require(await transport.writes.first)
         #expect(write.data == [0xE8, 0x03, 0x00, 0x00] && write.index == 0x0100 && write.value == 0x0400)
         await #expect(throws: DriverError.self) { try await UVCDriver().write(.int(0), to: capability("exposure_time"), using: transport) }
+    }
+}
+
+@Suite struct DefaultValueTests {
+    @Test func limitsCarryTheCamerasOwnDefaultWhenItIsInRange() async throws {
+        let camera = FakeCamera { request, _ in
+            switch request {
+            case 0x82: [0x00, 0x00]
+            case 0x83: [0xFF, 0x00]
+            case 0x84: [0x01, 0x00]
+            case 0x87: [0x80, 0x00]
+            default: []
+            }
+        }
+        #expect(try await UVCDriver().limits(for: capability("contrast"), using: camera)?.defaultValue == 128)
+    }
+
+    @Test func aDefaultOutsideTheRangeIsIgnored() async throws {
+        let camera = FakeCamera { request, _ in
+            switch request {
+            case 0x82: [0x00, 0x00]
+            case 0x83: [0x0A, 0x00]
+            case 0x84: [0x01, 0x00]
+            case 0x87: [0xFF, 0x00]
+            default: []
+            }
+        }
+        #expect(try await UVCDriver().limits(for: capability("contrast"), using: camera)?.defaultValue == nil)
     }
 }

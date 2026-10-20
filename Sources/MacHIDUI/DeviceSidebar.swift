@@ -89,7 +89,9 @@ struct SpecsPanel: View {
     /// Specs that share a group go on one card; the rest get a card each.
     private func blocks(of specs: [ControlSpec], hidingEffects: Bool) -> [Block] {
         var result: [Block] = []
-        for spec in specs {
+        // Automatic switches come first in a group: the manual control below them is disabled while they are on.
+        let ordered = specs.enumerated().sorted { ($0.element.id.hasSuffix("_auto") ? 0 : 1, $0.offset) < ($1.element.id.hasSuffix("_auto") ? 0 : 1, $1.offset) }.map(\.element)
+        for spec in ordered {
             if case .keyLighting = spec.kind { continue }
             if hidingEffects, case .lighting = spec.kind { continue }
             if let key = spec.group {
@@ -128,6 +130,10 @@ struct SpecsPanel: View {
                 Button { model.syncLighting(from: device.id) } label: { Label("Match other devices", systemImage: "link") }
                     .buttonStyle(PillButtonStyle())
                     .help("Use this color on every other device with lighting")
+            }
+            if section == .image {
+                Button { model.resetImage(for: device.id) } label: { Label("Reset to defaults", systemImage: "arrow.counterclockwise") }
+                    .buttonStyle(PillButtonStyle())
             }
             if let error = device.lastError {
                 Label { Text(verbatim: error).font(.caption) } icon: { Image(systemName: "exclamationmark.triangle") }

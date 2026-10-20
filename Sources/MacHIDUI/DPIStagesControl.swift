@@ -21,7 +21,7 @@ struct DPIStagesControl: View {
         let index = Swift.min(editing, stages.count - 1)
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Presets").font(.subheadline.weight(.medium))
+                Text("Tap a preset to use it.").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button { add(stages) } label: { Image(systemName: "plus") }
                     .buttonStyle(.plain).foregroundStyle(.secondary)

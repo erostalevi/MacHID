@@ -72,11 +72,14 @@ public struct ValueLimits: Equatable, Sendable {
     public let min: Int
     public let max: Int
     public let step: Int
+    /// The value the device itself ships with (UVC GET_DEF); nil when it does not say.
+    public let defaultValue: Int?
 
-    public init(min: Int, max: Int, step: Int = 1) {
+    public init(min: Int, max: Int, step: Int = 1, defaultValue: Int? = nil) {
         self.min = min
         self.max = max
         self.step = step
+        self.defaultValue = defaultValue
     }
 }
 

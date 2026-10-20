@@ -182,6 +182,7 @@ public struct MainWindowView: View {
             if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionPill }
         }
         .padding(20)
+        .padding(.bottom, model.devices.count > 1 ? 56 : 0)
         .padding(.trailing, Theme.sidebarWidth)   // notices belong to the stage side
     }
 

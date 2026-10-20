@@ -3102,6 +3102,50 @@
           }
         }
       }
+    },
+    "Reset to defaults": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restablecer valores"
+          }
+        }
+      }
+    },
+    "Onboard memory": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memoria del dispositivo"
+          }
+        }
+      }
+    },
+    "Per-key lighting": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iluminación por tecla"
+          }
+        }
+      }
+    },
+    "Tap a preset to use it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca un ajuste para usarlo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
