@@ -60,6 +60,24 @@ public protocol DeviceDriver: Sendable {
     var familyID: String { get }
     func read(_ capability: CapabilityDescriptor, using transport: any Transport) async throws -> SettingValue
     func write(_ value: SettingValue, to capability: CapabilityDescriptor, using transport: any Transport) async throws
+    /// Limits only the device itself knows (e.g. a camera's brightness range). Nil when the definition is enough.
+    func limits(for capability: CapabilityDescriptor, using transport: any Transport) async throws -> ValueLimits?
+}
+
+extension DeviceDriver {
+    public func limits(for capability: CapabilityDescriptor, using transport: any Transport) async throws -> ValueLimits? { nil }
+}
+
+public struct ValueLimits: Equatable, Sendable {
+    public let min: Int
+    public let max: Int
+    public let step: Int
+
+    public init(min: Int, max: Int, step: Int = 1) {
+        self.min = min
+        self.max = max
+        self.step = step
+    }
 }
 
 public protocol ProfileRepository: Sendable {

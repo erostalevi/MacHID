@@ -1,0 +1,53 @@
+import AppKit
+import SwiftUI
+import MacHIDUI
+
+/// Keeps the app alive in the menu bar (no Dock icon) and reopens the window when the user launches
+/// MacHID again, for example from Spotlight.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    var onReopen: (() -> Void)?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { onReopen?() }
+        return true
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+struct MacHIDApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @State private var model = AppModel.live()
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Scene {
+        MenuBarExtra {
+            MenuPanelView(model: model)
+        } label: {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .task {
+                    model.openMainWindow = {
+                        openWindow(id: "main")
+                        NSApp.activate()
+                    }
+                    delegate.onReopen = model.openMainWindow
+                    model.start()
+                    // Opened by the user (not by a login item): show the window right away.
+                    if !CommandLine.arguments.contains("--background") { model.openMainWindow?() }
+                }
+        }
+        .menuBarExtraStyle(.window)
+
+        Window("MacHID", id: "main") {
+            MainWindowView(model: model)
+        }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 760, height: 660)
+    }
+}
+
+MacHIDApp.main()

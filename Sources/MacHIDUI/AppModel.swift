@@ -1,0 +1,221 @@
+import Foundation
+import Observation
+import MacHIDApplication
+import MacHIDDomain
+import MacHIDIOKit
+
+/// State behind the menu bar panel and the main window. All device access goes through `DeviceControl`.
+@MainActor
+@Observable
+public final class AppModel {
+    public struct DeviceEntry: Identifiable, Equatable {
+        public let id: String
+        public var item: InventoryItem
+        public var specs: [ControlSpec]
+        public var values: [String: SettingValue] = [:]
+        public var limits: [String: ValueLimits] = [:]
+        public var lastError: String?
+
+        public var definition: DeviceDefinition? { item.definition }
+        public var name: String { item.device.name }
+        public var usbId: USBID { item.device.usbId }
+    }
+
+    public private(set) var devices: [DeviceEntry] = []
+    public var selectedDeviceID: String?
+    public private(set) var profiles: [Profile] = []
+    /// Device definition id -> id of the profile last applied to it.
+    public private(set) var activeProfileIDs: [String: String] = [:]
+    public private(set) var inputMonitoringGranted = true
+    public var banner: String?
+    /// Set by the app scene so the delegate and the menu can bring the window forward.
+    @ObservationIgnored public var openMainWindow: (() -> Void)?
+
+    @ObservationIgnored private let inventory: DeviceInventory
+    @ObservationIgnored private let control: DeviceControl
+    @ObservationIgnored private let repository: any ProfileRepository
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let writeDelay: Duration
+    @ObservationIgnored private let permissionCheck: @Sendable () -> Bool
+    @ObservationIgnored private var pendingWrites: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var pollTask: Task<Void, Never>?
+
+    private static let activeProfilesKey = "activeProfileIDs"
+
+    public init(inventory: DeviceInventory, control: DeviceControl, repository: any ProfileRepository,
+                defaults: UserDefaults = .standard, writeDelay: Duration = .milliseconds(150),
+                permissionCheck: @escaping @Sendable () -> Bool = { InputMonitoringPermission.isGranted }) {
+        self.inventory = inventory
+        self.control = control
+        self.repository = repository
+        self.defaults = defaults
+        self.writeDelay = writeDelay
+        self.permissionCheck = permissionCheck
+        self.activeProfileIDs = (defaults.dictionary(forKey: Self.activeProfilesKey) as? [String: String]) ?? [:]
+    }
+
+    // MARK: Lifecycle
+
+    /// Loads profiles and starts watching for devices being plugged in or removed.
+    public func start(pollInterval: Duration = .seconds(2)) {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            await self?.reloadProfiles()
+            while !Task.isCancelled {
+                await self?.refreshDevices()
+                try? await Task.sleep(for: pollInterval)
+            }
+        }
+    }
+
+    public func stop() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    public var selectedDevice: DeviceEntry? {
+        devices.first { $0.id == selectedDeviceID } ?? devices.first
+    }
+
+    // MARK: Devices
+
+    public func refreshDevices() async {
+        inputMonitoringGranted = permissionCheck()
+        let inventory = self.inventory
+        let items = (try? await Task.detached { try inventory.items(includeUnsupported: false) }.value) ?? []
+
+        let incoming = Dictionary(uniqueKeysWithValues: items.map { ($0.device.usbId.description, $0) })
+        let previousIDs = Set(devices.map(\.id))
+        devices.removeAll { incoming[$0.id] == nil }
+        var added: [String] = []
+        for item in items where !previousIDs.contains(item.device.usbId.description) {
+            let id = item.device.usbId.description
+            devices.append(DeviceEntry(id: id, item: item, specs: item.definition.map(ControlSpec.specs(for:)) ?? []))
+            added.append(id)
+        }
+        devices.sort { ($0.name, $0.id) < ($1.name, $1.id) }
+        if selectedDeviceID == nil || !devices.contains(where: { $0.id == selectedDeviceID }) {
+            selectedDeviceID = devices.first?.id
+        }
+        for id in added { await loadValues(for: id) }
+    }
+
+    /// Reads every readable capability (and device-reported limits) once, when a device appears.
+    public func loadValues(for deviceID: String) async {
+        guard let entry = devices.first(where: { $0.id == deviceID }) else { return }
+        for spec in entry.specs where spec.readable {
+            do {
+                if case .slider(_, _, _, true) = spec.kind,
+                   let limits = try await control.limits(entry.usbId, capability: spec.id) {
+                    update(deviceID) { $0.limits[spec.id] = limits }
+                }
+                let value = try await control.read(entry.usbId, capability: spec.id)
+                update(deviceID) { $0.values[spec.id] = value }
+            } catch {
+                update(deviceID) { $0.lastError = "\(spec.id): \(error)" }
+            }
+        }
+    }
+
+    // MARK: Changing settings
+
+    /// Updates the UI at once and sends the value to the device after a short pause, so dragging a
+    /// slider produces one write instead of dozens.
+    public func set(_ value: SettingValue, capability: String, on deviceID: String) {
+        update(deviceID) { $0.values[capability] = value }
+        let key = deviceID + "/" + capability
+        pendingWrites[key]?.cancel()
+        pendingWrites[key] = Task { [weak self, writeDelay] in
+            try? await Task.sleep(for: writeDelay)
+            guard !Task.isCancelled else { return }
+            await self?.write(value, capability: capability, deviceID: deviceID)
+        }
+    }
+
+    /// Waits until every scheduled write has been sent.
+    public func flushWrites() async {
+        for task in pendingWrites.values { await task.value }
+        pendingWrites.removeAll()
+    }
+
+    private func write(_ value: SettingValue, capability: String, deviceID: String) async {
+        guard let entry = devices.first(where: { $0.id == deviceID }) else { return }
+        do {
+            try await control.write(entry.usbId, capability: capability, value: value)
+            update(deviceID) { $0.lastError = nil }
+        } catch {
+            update(deviceID) { $0.lastError = "\(error)" }
+            banner = "\(entry.name): \(error)"
+        }
+    }
+
+    private func update(_ deviceID: String, _ change: (inout DeviceEntry) -> Void) {
+        guard let index = devices.firstIndex(where: { $0.id == deviceID }) else { return }
+        change(&devices[index])
+    }
+
+    // MARK: Profiles
+
+    public func reloadProfiles() async {
+        profiles = (try? await repository.load()) ?? []
+    }
+
+    public func profiles(for deviceID: String) -> [Profile] {
+        guard let definitionID = devices.first(where: { $0.id == deviceID })?.definition?.id else { return [] }
+        return profiles.filter { $0.settings[definitionID] != nil }
+    }
+
+    public func activeProfile(for deviceID: String) -> Profile? {
+        guard let definitionID = devices.first(where: { $0.id == deviceID })?.definition?.id,
+              let profileID = activeProfileIDs[definitionID] else { return nil }
+        return profiles.first { $0.id == profileID }
+    }
+
+    /// Saves the values currently set on a device as a profile for that device model.
+    @discardableResult
+    public func saveProfile(named name: String, from deviceID: String) async -> Profile? {
+        guard let entry = devices.first(where: { $0.id == deviceID }), let definition = entry.definition else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let savable = entry.specs.filter { $0.isWritable && $0.kind != .hostControl }.map(\.id)
+        let settings = entry.values.filter { savable.contains($0.key) }
+        let profile = Profile(id: UUID().uuidString, name: trimmed, settings: [definition.id: settings])
+        do {
+            try await repository.save(profile)
+            await reloadProfiles()
+            setActive(profile.id, definitionID: definition.id)
+            return profile
+        } catch {
+            banner = "Could not save the profile: \(error)"
+            return nil
+        }
+    }
+
+    public func deleteProfile(_ id: String) async {
+        do {
+            try await repository.delete(id: id)
+            await reloadProfiles()
+            for (definition, active) in activeProfileIDs where active == id { setActive(nil, definitionID: definition) }
+        } catch {
+            banner = "Could not delete the profile: \(error)"
+        }
+    }
+
+    /// Writes every setting of the profile that applies to this device, one after another.
+    public func applyProfile(_ profileID: String, to deviceID: String) async {
+        guard let entry = devices.first(where: { $0.id == deviceID }), let definition = entry.definition,
+              let profile = profiles.first(where: { $0.id == profileID }),
+              let settings = profile.settings[definition.id] else { return }
+        for spec in entry.specs {
+            guard let value = settings[spec.id] else { continue }
+            update(deviceID) { $0.values[spec.id] = value }
+            await write(value, capability: spec.id, deviceID: deviceID)
+        }
+        setActive(profile.id, definitionID: definition.id)
+    }
+
+    private func setActive(_ profileID: String?, definitionID: String) {
+        activeProfileIDs[definitionID] = profileID
+        defaults.set(activeProfileIDs, forKey: Self.activeProfilesKey)
+    }
+}

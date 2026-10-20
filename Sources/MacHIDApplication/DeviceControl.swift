@@ -44,6 +44,13 @@ public struct DeviceControl: Sendable {
         return try await session.driver.read(capability, using: session.transport)
     }
 
+    /// Limits reported by the device itself, if the driver has any for this capability.
+    public func limits(_ id: USBID, capability capabilityID: String) async throws -> ValueLimits? {
+        let (device, definition, capability) = try await resolve(id, capabilityID)
+        let session = try await connector.connect(to: device, definition: definition)
+        return try await session.driver.limits(for: capability, using: session.transport)
+    }
+
     public func write(_ id: USBID, capability capabilityID: String, value: SettingValue) async throws {
         let (device, definition, capability) = try await resolve(id, capabilityID)
         switch capability.access {

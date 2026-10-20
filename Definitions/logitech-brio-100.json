@@ -40,7 +40,13 @@
     {
       "id": "white_balance_auto",
       "type": "camera_control",
-      "access": "write_volatile"
+      "access": "write_volatile",
+      "parameters": {
+        "values": [
+          0,
+          1
+        ]
+      }
     },
     {
       "id": "backlight_compensation",
@@ -55,7 +61,14 @@
     {
       "id": "power_line_frequency",
       "type": "camera_control",
-      "access": "write_volatile"
+      "access": "write_volatile",
+      "parameters": {
+        "values": [
+          0,
+          1,
+          2
+        ]
+      }
     }
   ]
 }

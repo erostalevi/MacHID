@@ -6,12 +6,17 @@ import MacHIDRazer
 import MacHIDUVC
 
 /// Composition root: picks the driver family and opens the matching transport.
-struct SystemDeviceConnector: DeviceConnector {
-    let trace: Bool
+public struct SystemDeviceConnector: DeviceConnector {
+    private let decorate: @Sendable (any Transport) -> any Transport
 
-    private func wrap(_ transport: any Transport) -> any Transport { trace ? TracingTransport(inner: transport) : transport }
+    /// - Parameter decorate: optional wrapper applied to every transport (the CLI's `--trace` uses it).
+    public init(decorate: @escaping @Sendable (any Transport) -> any Transport = { $0 }) {
+        self.decorate = decorate
+    }
 
-    func connect(to device: DiscoveredDevice, definition: DeviceDefinition) async throws -> (driver: any DeviceDriver, transport: any Transport) {
+    private func wrap(_ transport: any Transport) -> any Transport { decorate(transport) }
+
+    public func connect(to device: DiscoveredDevice, definition: DeviceDefinition) async throws -> (driver: any DeviceDriver, transport: any Transport) {
         switch definition.driver {
         case "razer":
             guard let model = RazerModel.model(for: device.usbId) else { throw DriverError.unsupportedModel(device.usbId) }

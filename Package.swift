@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "MacHIDDomain", targets: ["MacHIDDomain"]),
         .library(name: "MacHIDApplication", targets: ["MacHIDApplication"]),
         .executable(name: "machid", targets: ["machid"]),
+        .executable(name: "MacHIDApp", targets: ["MacHIDApp"]),
         .executable(name: "machid-validate", targets: ["machid-validate"]),
     ],
     targets: [
@@ -23,12 +24,18 @@ let package = Package(
         .target(name: "MacHIDUVC", dependencies: ["MacHIDDomain"]),
         // Adapter: IOKit enumeration. The only place that imports IOKit.
         .target(name: "MacHIDIOKit", dependencies: ["MacHIDDomain"], linkerSettings: [.linkedFramework("IOUSBHost")]),
-        .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDRazer", "MacHIDLogitech", "MacHIDUVC"]),
+        // Composition: picks the driver family and transport for a device. Shared by the CLI and the app.
+        .target(name: "MacHIDSystem", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDRazer", "MacHIDLogitech", "MacHIDUVC"]),
+        // SwiftUI models and views (menu bar panel and main window). Logic lives here so it can be tested.
+        .target(name: "MacHIDUI", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
+        .executableTarget(name: "MacHIDApp", dependencies: ["MacHIDUI"]),
+        .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
         .executableTarget(name: "machid-validate", dependencies: ["MacHIDDomain"]),
         .testTarget(name: "MacHIDDomainTests", dependencies: ["MacHIDDomain"]),
         .testTarget(name: "MacHIDRazerTests", dependencies: ["MacHIDRazer", "MacHIDDomain"]),
         .testTarget(name: "MacHIDLogitechTests", dependencies: ["MacHIDLogitech", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUVCTests", dependencies: ["MacHIDUVC", "MacHIDDomain"]),
+        .testTarget(name: "MacHIDUITests", dependencies: ["MacHIDUI", "MacHIDDomain", "MacHIDApplication"]),
         .testTarget(name: "MacHIDApplicationTests", dependencies: ["MacHIDApplication", "MacHIDDomain"]),
     ]
 )

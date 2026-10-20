@@ -2,6 +2,7 @@ import Foundation
 import MacHIDApplication
 import MacHIDDomain
 import MacHIDIOKit
+import MacHIDSystem
 
 // Read-only CLI (M1). Writes to devices arrive with drivers in M2/M3.
 let usage = """
@@ -111,7 +112,7 @@ func describe(_ value: SettingValue) -> String {
     }
 }
 
-let control = DeviceControl(inventory: inventory, connector: SystemDeviceConnector(trace: trace))
+let control = DeviceControl(inventory: inventory, connector: SystemDeviceConnector(decorate: { trace ? TracingTransport(inner: $0) : $0 }))
 
 do {
     switch command {

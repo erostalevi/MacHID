@@ -83,6 +83,16 @@ public struct UVCDriver: DeviceDriver {
                                          data: Self.encode(number, size: control.size))
     }
 
+    public func limits(for capability: CapabilityDescriptor, using transport: any Transport) async throws -> ValueLimits? {
+        guard let control = UVCControl.control(id: capability.id), case .range = control.kind else { return nil }
+        let descriptor = try await UVCDescriptor.parse(configuration: transport.usbConfigurationDescriptor())
+        let unit = try unitID(for: control, in: descriptor)
+        let low = try await query(Request.getMin, control, unit: unit, descriptor: descriptor, transport: transport)
+        let high = try await query(Request.getMax, control, unit: unit, descriptor: descriptor, transport: transport)
+        let step = max(1, (try? await query(Request.getRes, control, unit: unit, descriptor: descriptor, transport: transport)) ?? 1)
+        return ValueLimits(min: low, max: high, step: step)
+    }
+
     // MARK: Helpers
 
     private func isSupported(_ control: UVCControl, in descriptor: UVCDescriptor) -> Bool {

@@ -54,3 +54,5 @@ public struct Profile: Sendable, Codable, Equatable {
         self.settings = settings
     }
 }
+
+extension Profile: Identifiable {}

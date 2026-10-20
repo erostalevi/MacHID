@@ -157,3 +157,17 @@ private func capability(_ id: String) -> CapabilityDescriptor { CapabilityDescri
         #expect(UVCDriver.decode([0xFF], size: 1, signed: false) == 255)
     }
 }
+
+@Suite struct LimitsTests {
+    @Test func rangeControlsReportTheCamerasOwnLimits() async throws {
+        let camera = FakeCamera(answer: brightnessAnswers)
+        let limits = try await UVCDriver().limits(for: capability("brightness"), using: camera)
+        #expect(limits == ValueLimits(min: -64, max: 64, step: 1))
+    }
+
+    @Test func flagsAndEnumerationsHaveNoDeviceLimits() async throws {
+        let camera = FakeCamera { _, _ in [] }
+        #expect(try await UVCDriver().limits(for: capability("white_balance_auto"), using: camera) == nil)
+        #expect(try await UVCDriver().limits(for: capability("power_line_frequency"), using: camera) == nil)
+    }
+}
