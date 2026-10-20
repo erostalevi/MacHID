@@ -58,7 +58,7 @@ struct MacHIDApp: App {
         .menuBarExtraStyle(.window)
 
         Window("MacHID", id: "main") {
-            MainWindowView(model: model)
+            MainWindowView(model: model, remap: remap)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 760, height: 660)

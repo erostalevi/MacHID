@@ -9,8 +9,10 @@ public struct MainWindowView: View {
     @State private var profileName = ""
     @Namespace private var chipNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(OnboardingStore.key) private var onboardingDone = false
+    var remap: RemapController?
 
-    public init(model: AppModel) { self.model = model }
+    public init(model: AppModel, remap: RemapController? = nil) { self.model = model; self.remap = remap }
 
     public var body: some View {
         ZStack {
@@ -40,6 +42,11 @@ public struct MainWindowView: View {
                 .motion(\.smooth, value: effectiveSection(device))
             } else {
                 emptyState
+            }
+            if !onboardingDone {
+                Color.black.opacity(0.15).ignoresSafeArea()
+                OnboardingView(remap: remap) { withAnimation(Motion(reduce: reduceMotion).smooth) { onboardingDone = true } }
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
             VStack(spacing: 10) {
                 Spacer()

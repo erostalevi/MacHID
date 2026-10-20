@@ -44,6 +44,7 @@ func run() {
     render(PluginsView(plugins: PreviewSupport.pluginsModel()).background(backdrop), size: CGSize(width: 620, height: 700), to: out.appendingPathComponent("plugins.png"))
     render(RemapView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 560), to: out.appendingPathComponent("remap.png"))
     render(MacrosView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 640), to: out.appendingPathComponent("macros.png"))
+    render(OnboardingView(remap: remap) {}.padding(20).background(backdrop), size: CGSize(width: 520, height: 400), to: out.appendingPathComponent("onboarding.png"))
     render(MenuPanelView(model: model).background(backdrop), size: CGSize(width: 340, height: 420), to: out.appendingPathComponent("menu-panel.png"))
 }
 
