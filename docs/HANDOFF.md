@@ -56,6 +56,7 @@ Useful commands: `machid list --all`, `machid info 1532:0257`, `machid get 046d:
 - G203: `backlight cycle`, `backlight breathing:00FF00`, `get/set polling_rate 125|250|500|1000`, then `device_mode 0`.
 - Brio: `get/set exposure_auto 0|1`, `get/set exposure_time <n>` (100 µs units; only works with auto off).
 - Event tap: enable remapping in Settings > Remap with a harmless rule (e.g. F5 -> another key), grant Input Monitoring + Accessibility to MacHID.app, confirm Force Quit (⌘⌥Esc) still works, turn it off and confirm normal typing.
+- M9 (glass window, slim menu, perf; `docs/changes/M9-glass-panel-rendimiento.md`): packaged app launches and idles; **not seen on screen**: ask the user about glass corners, text contrast, window drag, menu panel.
 - UI added after M4 (shortcuts ⌘1…⌘5, banner timer, macro favorites, Stop macros, onboarding, plugins and updates pages): run the app and look.
 - `scripts/make-app.sh` with `MacHIDPluginHost` and a launch of the packaged app; hardened runtime with JIT off may need `allow-jit` for the host.
 ### End-to-end checks that need keys
