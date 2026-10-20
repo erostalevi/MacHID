@@ -6,6 +6,15 @@ public struct RazerModel: Sendable, Equatable {
     public let usbId: USBID
     /// Transaction id used for the extended-matrix (lighting) commands.
     public let lightingTransactionID: UInt8
+    /// Transaction id for the battery commands (OpenRazer uses 0x3F, 0x1F or 0xFF depending on the model).
+    /// Set through the definition's `driver_options.battery_transaction_id`; 0x3F when absent.
+    public let batteryTransactionID: UInt8
+
+    public init(usbId: USBID, lightingTransactionID: UInt8, batteryTransactionID: UInt8 = 0x3F) {
+        self.usbId = usbId
+        self.lightingTransactionID = lightingTransactionID
+        self.batteryTransactionID = batteryTransactionID
+    }
 
     public static let known: [RazerModel] = [
         RazerModel(usbId: USBID(vendor: 0x1532, product: 0x0257), lightingTransactionID: 0x3F), // Huntsman Mini
@@ -16,10 +25,13 @@ public struct RazerModel: Sendable, Equatable {
     /// The model for a device: parameters from its definition when it gives them (so new models can be added as
     /// data), otherwise the built-in table.
     public static func model(for id: USBID, options: [String: String]?) -> RazerModel? {
+        let battery = options?["battery_transaction_id"].flatMap(parseByte)
         if let text = options?["lighting_transaction_id"], let value = parseByte(text) {
-            return RazerModel(usbId: id, lightingTransactionID: value)
+            return RazerModel(usbId: id, lightingTransactionID: value, batteryTransactionID: battery ?? 0x3F)
         }
-        return model(for: id)
+        guard let base = model(for: id) else { return nil }
+        return RazerModel(usbId: id, lightingTransactionID: base.lightingTransactionID,
+                          batteryTransactionID: battery ?? base.batteryTransactionID)
     }
 
     /// Accepts "0x3F" or "63".
@@ -57,6 +69,11 @@ public struct RazerDriver: DeviceDriver {
         case "device_mode":
             let response = try await exchange(RazerCommands.getDeviceMode(), on: transport)
             return .int(Int(response.arguments[0]))
+        case "battery":
+            let level = try await exchange(RazerCommands.batteryLevel(transactionID: model.batteryTransactionID), on: transport)
+            // Some models (AA-powered ones) reject the charging query: report the level without it.
+            let charging = try? await exchange(RazerCommands.chargingStatus(transactionID: model.batteryTransactionID), on: transport)
+            return .battery(percent: Self.percent(fromRaw: level.arguments[1]), charging: charging.map { $0.arguments[1] != 0 })
         default:
             throw DriverError.unsupportedCapability(capability.id)
         }

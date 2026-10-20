@@ -15,6 +15,16 @@ public enum RazerCommands {
         RazerReport(transactionID: standardTransactionID, commandClass: 0x00, commandID: 0x81, dataSize: 0x02)
     }
 
+    /// Battery level (class 0x07, command 0x80): 0...255 in argument 1. OpenRazer `razer_chroma_misc_get_battery_level`.
+    public static func batteryLevel(transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x07, commandID: 0x80, dataSize: 0x02)
+    }
+
+    /// Charging status (class 0x07, command 0x84): 0 or 1 in argument 1. OpenRazer `razer_chroma_misc_get_charging_status`.
+    public static func chargingStatus(transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x07, commandID: 0x84, dataSize: 0x02)
+    }
+
     public static func getBrightness(transactionID: UInt8) -> RazerReport {
         RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x84, dataSize: 0x03,
                     arguments: [varStore, backlightLED, 0x00])
