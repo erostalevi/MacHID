@@ -12,6 +12,8 @@ usage:
   machid set <vvvv:pppp> brightness <0-100>
   machid set <vvvv:pppp> backlight <RRGGBB|off>
   machid --version
+
+add --trace to get/set to print the raw protocol bytes to stderr
 """
 
 func fail(_ message: String, code: Int32 = 1) -> Never {
@@ -79,6 +81,7 @@ struct Arguments {
 var arguments = Arguments(values: Array(CommandLine.arguments.dropFirst()))
 let json = arguments.takeFlag("--json")
 let showAll = arguments.takeFlag("--all")
+let trace = arguments.takeFlag("--trace")
 let definitionsPath = arguments.takeOption("--definitions")
 let args = arguments.values
 
@@ -106,7 +109,7 @@ func describe(_ value: SettingValue) -> String {
     }
 }
 
-let control = DeviceControl(inventory: inventory, connector: SystemDeviceConnector())
+let control = DeviceControl(inventory: inventory, connector: SystemDeviceConnector(trace: trace))
 
 do {
     switch command {
