@@ -40,12 +40,14 @@ let package = Package(
         .executableTarget(name: "MacHIDSnapshots", dependencies: ["MacHIDUI", "MacHIDDomain"]),
         .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
         .executableTarget(name: "machid-validate", dependencies: ["MacHIDDomain"]),
+        // Sandboxed host for plugin scripts (JavaScriptCore); speaks JSON over stdin/stdout and imports nothing of ours.
+        .executableTarget(name: "MacHIDPluginHost"),
         .testTarget(name: "MacHIDDomainTests", dependencies: ["MacHIDDomain"]),
         .testTarget(name: "MacHIDRazerTests", dependencies: ["MacHIDRazer", "MacHIDDomain"]),
         .testTarget(name: "MacHIDLogitechTests", dependencies: ["MacHIDLogitech", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUVCTests", dependencies: ["MacHIDUVC", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUITests", dependencies: ["MacHIDUI", "MacHIDDomain", "MacHIDApplication", "MacHIDSystem"]),
-        .testTarget(name: "MacHIDSystemTests", dependencies: ["MacHIDSystem", "MacHIDApplication", "MacHIDDomain"]),
+        .testTarget(name: "MacHIDSystemTests", dependencies: ["MacHIDSystem", "MacHIDApplication", "MacHIDDomain", "MacHIDPluginHost"]),
         .testTarget(name: "MacHIDQuartzTests", dependencies: ["MacHIDQuartz", "MacHIDApplication", "MacHIDDomain"]),
         .testTarget(name: "MacHIDApplicationTests", dependencies: ["MacHIDApplication", "MacHIDDomain"]),
     ]
