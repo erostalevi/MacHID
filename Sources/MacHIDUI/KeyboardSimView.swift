@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import MacHIDApplication
 import MacHIDDomain
 
 /// The keyboard from above, lit the way the real one is. Effects are simulated from the current setting, so changes
@@ -7,6 +8,10 @@ import MacHIDDomain
 struct KeyboardSimView: View {
     let layout: KeyboardLayout
     var effect: SimEffect
+    /// When set, the board shows this layered scene instead of `effect`.
+    var scene: LightingScene?
+    /// Key presses seen system-wide (for reactive layers); typing in this window also counts.
+    var externalEvents: [KeyEvent] = []
     var brightness: Double = 1
     var selected: String?
     var remapped: Set<String> = []
@@ -26,7 +31,7 @@ struct KeyboardSimView: View {
             let unit = min((proxy.size.width - 48) / layout.width, 52)
             let boardWidth = layout.width * unit, boardHeight = layout.height * unit
             let origin = CGPoint(x: (proxy.size.width - boardWidth) / 2, y: (proxy.size.height - boardHeight) / 2)
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !effect.isAnimated || reduceMotion || activeState == .inactive)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animated || reduceMotion || activeState == .inactive)) { timeline in
                 Canvas { context, size in
                     draw(&context, unit: unit, origin: origin, time: timeline.date)
                 }
@@ -67,6 +72,11 @@ struct KeyboardSimView: View {
         }
     }
 
+    private var animated: Bool {
+        if let scene { return !LightingCompositor.isStatic(scene) }
+        return effect.isAnimated
+    }
+
     private func key(at point: CGPoint, unit: CGFloat, origin: CGPoint) -> KeyboardKey? {
         layout.key(atX: Double((point.x - origin.x) / unit), y: Double((point.y - origin.y) / unit))
     }
@@ -92,16 +102,23 @@ struct KeyboardSimView: View {
         }
         // Chassis.
         let chassis = CGRect(x: origin.x - 12, y: origin.y - 12, width: layout.width * unit + 24, height: layout.height * unit + 24)
-        context.fill(Path(roundedRect: chassis, cornerRadius: 22, style: .continuous), with: .color(.white.opacity(0.06)))
-        context.stroke(Path(roundedRect: chassis, cornerRadius: 22, style: .continuous), with: .color(.white.opacity(0.22)), lineWidth: 1)
+        context.fill(Path(roundedRect: chassis, cornerRadius: 22, style: .continuous), with: .color(.primary.opacity(0.05)))
+        context.stroke(Path(roundedRect: chassis, cornerRadius: 22, style: .continuous), with: .color(.primary.opacity(0.2)), lineWidth: 1)
 
-        let colors: [String: Color] = Dictionary(uniqueKeysWithValues: layout.keys.map { ($0.id, litColor(for: $0, time: t)) })
+        let colors: [String: Color]
+        if let scene {
+            let local = flashes.map { KeyEvent(keyID: $0.key, startTime: $0.value.timeIntervalSinceReferenceDate) }
+            let rendered = LightingCompositor.render(scene, layout: layout, time: t, keyEvents: externalEvents + local)
+            colors = rendered.mapValues { $0.color }
+        } else {
+            colors = Dictionary(uniqueKeysWithValues: layout.keys.map { ($0.id, litColor(for: $0, time: t)) })
+        }
         // Glow under the keys: one blurred layer for the whole board.
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: unit * 0.28))
             for key in layout.keys {
                 layer.fill(Path(roundedRect: rect(key).insetBy(dx: 1, dy: 1), cornerRadius: unit * 0.18, style: .continuous),
-                           with: .color((colors[key.id] ?? .clear).opacity(0.55 * brightness)))
+                           with: .color((colors[key.id] ?? .clear).opacity(0.38 * brightness)))
             }
         }
         for key in layout.keys {
@@ -111,12 +128,7 @@ struct KeyboardSimView: View {
             let isSelected = selected == key.id
             context.fill(path, with: .color(Color(white: 0.13, opacity: 0.85)))
             context.fill(path, with: .color(lit.opacity(0.78 * brightness)))
-            // A soft highlight on the top edge gives the keycap its shape.
-            context.fill(Path(roundedRect: CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height * 0.45),
-                              cornerRadius: unit * 0.16, style: .continuous), with: .linearGradient(
-                                Gradient(colors: [.white.opacity(0.22), .clear]), startPoint: CGPoint(x: frame.midX, y: frame.minY),
-                                endPoint: CGPoint(x: frame.midX, y: frame.maxY)))
-            context.stroke(path, with: .color(isSelected ? .white : .white.opacity(hovered == key.id ? 0.7 : 0.25)), lineWidth: isSelected ? 2 : 1)
+            context.stroke(path, with: .color(isSelected ? .primary : .primary.opacity(hovered == key.id ? 0.7 : 0.2)), lineWidth: isSelected ? 2 : 1)
             if !key.label.isEmpty {
                 let text = context.resolve(Text(verbatim: key.label).font(.system(size: max(8, unit * (key.label.count > 2 ? 0.22 : 0.3)), weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.9)))

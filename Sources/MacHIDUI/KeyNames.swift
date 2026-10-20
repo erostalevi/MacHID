@@ -13,7 +13,21 @@ public enum KeyNames {
         118: "F4", 119: "End", 120: "F2", 121: "Page Down", 122: "F1", 123: "←", 124: "→", 125: "↓", 126: "↑",
         82: "Keypad 0", 83: "Keypad 1", 84: "Keypad 2", 85: "Keypad 3", 86: "Keypad 4", 87: "Keypad 5", 88: "Keypad 6",
         89: "Keypad 7", 91: "Keypad 8", 92: "Keypad 9",
+        54: "Right ⌘", 55: "Left ⌘", 56: "Left ⇧", 57: "Caps Lock", 58: "Left ⌥", 59: "Left ⌃", 60: "Right ⇧", 61: "Right ⌥", 62: "Right ⌃", 63: "fn",
     ]
+
+    /// The modifier flag a lone modifier key sets (nil for ordinary keys).
+    static func modifierFlag(forCode code: Int) -> NSEvent.ModifierFlags? {
+        switch code {
+        case 54, 55: .command
+        case 56, 60: .shift
+        case 57: .capsLock
+        case 58, 61: .option
+        case 59, 62: .control
+        case 63: .function
+        default: nil
+        }
+    }
 
     public static func key(_ code: Int) -> String { keys[code] ?? "Key \(code)" }
 

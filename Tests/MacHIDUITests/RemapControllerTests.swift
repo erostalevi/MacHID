@@ -106,6 +106,52 @@ private func keyDown(_ code: Int) -> InputEvent { InputEvent(kind: .keyboard, co
         #expect(controller.isActive == false && controller.banner != nil)
     }
 
+    @Test func shiftModesReachTheEngineAndReportActivity() async throws {
+        let (controller, tap, _, _) = makeController()
+        await controller.load()
+        let seen = Box<[Set<String>]>()
+        seen.value = []
+        controller.onShiftModesChanged = { seen.value?.append($0) }
+        #expect(await controller.addShiftMode(ShiftMode(id: "m", name: "Gaming", trigger: InputTrigger(kind: .keyboard, code: 63))))
+        await controller.upsertRule(RemapRule(id: "r", trigger: InputTrigger(kind: .keyboard, code: 5), action: .disable, shiftModeIDs: ["m"]))
+        await controller.setEnabled(true)
+        let handler = try #require(tap.value).handler
+        #expect(handler(keyDown(5)) == .passthrough)
+        #expect(handler(keyDown(63)) == .suppress)
+        for _ in 0..<100 where controller.activeShiftModes.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(controller.activeShiftModes == ["m"])
+        #expect(handler(keyDown(5)) == .suppress)
+        _ = handler(InputEvent(kind: .keyboard, code: 63, isDown: false))
+        for _ in 0..<100 where !controller.activeShiftModes.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(controller.activeShiftModes.isEmpty && seen.value == [["m"], []])
+        await controller.removeShiftMode("m")
+        #expect(controller.config.shiftModes.isEmpty && controller.config.rules.isEmpty)
+    }
+
+    @Test func unsafeShiftTriggersAreRefused() async {
+        let (controller, _, _, _) = makeController()
+        await controller.load()
+        #expect(await controller.addShiftMode(ShiftMode(id: "x", name: "Left click", trigger: InputTrigger(kind: .mouseButton, code: 0))) == false)
+        #expect(await controller.addShiftMode(ShiftMode(id: "y", name: "Esc", trigger: InputTrigger(kind: .keyboard, code: 53))) == false)
+        #expect(controller.config.shiftModes.isEmpty && controller.banner != nil)
+    }
+
+    @Test func profileRulesCallBackOnTheMainActor() async throws {
+        let (controller, tap, _, _) = makeController()
+        await controller.load()
+        let got = Box<[String]>()
+        got.value = []
+        controller.onSwitchProfile = { got.value?.append($0) }
+        controller.onCycleProfile = { got.value?.append("cycle\($0)") }
+        await controller.upsertRule(RemapRule(id: "p", trigger: InputTrigger(kind: .keyboard, code: 5), action: .switchProfile("work")))
+        await controller.upsertRule(RemapRule(id: "n", trigger: InputTrigger(kind: .keyboard, code: 6), action: .nextProfile))
+        await controller.setEnabled(true)
+        let handler = try #require(tap.value).handler
+        #expect(handler(keyDown(5)) == .suppress && handler(keyDown(6)) == .suppress)
+        for _ in 0..<100 where got.value?.count != 2 { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(got.value == ["work", "cycle1"])
+    }
+
     @Test func ruleChangesReachTheEngineImmediately() async throws {
         let (controller, tap, _, _) = makeController()
         await controller.load()

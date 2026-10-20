@@ -86,6 +86,10 @@ public struct RemapView: View {
         case .mouseButton(let button): KeyNames.mouseButton(button)
         case .macro(let id): remap.config.macro(id: id).map { "Macro “\($0.name)”" } ?? "Missing macro"
         case .disable: String(localized: "Do nothing")
+        case .switchProfile: String(localized: "Switch profile")
+        case .nextProfile: String(localized: "Next profile")
+        case .previousProfile: String(localized: "Previous profile")
+        case .toggleShiftMode(let id): remap.config.shiftMode(id: id).map { "Toggle “\($0.name)”" } ?? "Missing mode"
         }
     }
 

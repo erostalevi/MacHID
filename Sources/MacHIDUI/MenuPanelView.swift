@@ -16,9 +16,9 @@ public struct MenuPanelView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Theme.gap - 2) {
+            topBar
             if let device = model.selectedDevice {
-                header(device)
-                if model.devices.count > 1 { switcher }
+                miniStage(device)
                 DeviceCard(model: model, device: device)
                     .id(device.id)
                     .transition(.opacity)
@@ -30,7 +30,7 @@ public struct MenuPanelView: View {
             footer
         }
         .padding(14)
-        .frame(width: 316)
+        .frame(width: 340)
         .motion(\.smooth, value: model.selectedDeviceID)
     }
 
@@ -42,43 +42,80 @@ public struct MenuPanelView: View {
         .frame(maxWidth: .infinity).padding(.vertical, 22)
     }
 
-    /// Device name with the same switcher the window has.
-    private func header(_ device: AppModel.DeviceEntry) -> some View {
+    /// The same device bar as the window, with the app's name and the selected device's battery.
+    private var topBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: Titles.symbol(for: device.category))
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(device.accent)
-                .frame(width: 34, height: 34)
-                .background(device.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: device.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                if let percent = model.batteryPercent(for: device.id) { BatteryBadge(percent: percent, charging: model.isCharging(device.id)) }
-                else { Text("Connected").font(.caption).foregroundStyle(.secondary) }
+            if model.devices.count > 1 {
+                HStack(spacing: 4) {
+                    ForEach(model.devices) { entry in
+                        let active = entry.id == model.selectedDevice?.id
+                        Button { withAnimation(.snappy(duration: 0.25)) { model.selectedDeviceID = entry.id } } label: {
+                            Image(systemName: Titles.symbol(for: entry.category))
+                                .font(.system(size: 14, weight: active ? .semibold : .regular))
+                                .frame(width: 38, height: 30)
+                                .foregroundStyle(active ? AnyShapeStyle(entry.accent) : AnyShapeStyle(.secondary))
+                                .background {
+                                    if active {
+                                        RoundedRectangle(cornerRadius: Theme.chipRadius - 2, style: .continuous).fill(entry.accent.opacity(0.22))
+                                            .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius - 2, style: .continuous).strokeBorder(entry.accent.opacity(0.45), lineWidth: 1))
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain).help(Text(verbatim: entry.name)).accessibilityLabel(Text(verbatim: entry.name))
+                    }
+                }
+                .padding(3).flatSurface(cornerRadius: Theme.chipRadius + 1)
+            } else if let device = model.selectedDevice {
+                Image(systemName: Titles.symbol(for: device.category)).font(.system(size: 15, weight: .semibold)).foregroundStyle(device.accent)
+            }
+            Spacer()
+            if let device = model.selectedDevice {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(verbatim: device.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    if let percent = model.batteryPercent(for: device.id) { BatteryBadge(percent: percent, charging: model.isCharging(device.id)) }
+                    else { Text("Connected").font(.caption).foregroundStyle(.secondary) }
+                }
             }
         }
     }
 
-    /// Same device switcher as the window's dock.
-    private var switcher: some View {
-        HStack(spacing: 4) {
-            ForEach(model.devices) { entry in
-                let active = entry.id == model.selectedDevice?.id
-                Button { model.selectedDeviceID = entry.id } label: {
-                    Image(systemName: Titles.symbol(for: entry.category))
-                        .font(.system(size: 13, weight: active ? .semibold : .regular))
-                        .frame(maxWidth: .infinity, minHeight: 28)
-                        .foregroundStyle(active ? AnyShapeStyle(entry.accent) : AnyShapeStyle(.secondary))
-                        .background {
-                            if active {
-                                RoundedRectangle(cornerRadius: Theme.chipRadius - 3, style: .continuous).fill(entry.accent.opacity(0.22))
-                                    .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius - 3, style: .continuous).strokeBorder(entry.accent.opacity(0.45), lineWidth: 1))
-                            }
-                        }
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).help(Text(verbatim: entry.name)).accessibilityLabel(Text(verbatim: entry.name))
+    /// A small live drawing of the selected device (the camera is never started from the menu).
+    @ViewBuilder private func miniStage(_ device: AppModel.DeviceEntry) -> some View {
+        ZStack {
+            switch device.category {
+            case .mouse:
+                MouseSimView(accent: device.accent, lightsOn: miniLightsOn(device), dpi: nil, selected: nil)
+                    .scaleEffect(0.29).frame(width: 420, height: 440).frame(width: 150, height: 132).clipped()
+            case .keyboard:
+                if let layout = KeyboardLayout.layout(forDefinitionID: device.definition?.id) {
+                    KeyboardSimView(layout: layout, effect: miniEffect(device), brightness: miniBrightness(device))
+                        .scaleEffect(0.62).frame(width: 540, height: 280).frame(width: 330, height: 132).clipped()
+                } else { icon(device) }
+            default: icon(device)
             }
         }
-        .padding(3).background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous))
+        .frame(maxWidth: .infinity).frame(height: 132)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func icon(_ device: AppModel.DeviceEntry) -> some View {
+        Image(systemName: Titles.symbol(for: device.category)).font(.system(size: 54, weight: .thin)).foregroundStyle(device.accent)
+    }
+
+    private func miniLightsOn(_ device: AppModel.DeviceEntry) -> Bool {
+        for spec in device.specs { if case .lighting = spec.kind { return LightingModes.mode(of: device.values[spec.id]) != "off" } }
+        return true
+    }
+    private func miniEffect(_ device: AppModel.DeviceEntry) -> SimEffect {
+        if model.perKeyActive.contains(device.id), case .keyFrame(let frame)? = device.values["key_lighting"] { return SimEffect.from(nil, frame: frame) }
+        for spec in device.specs { if case .lighting = spec.kind { return SimEffect.from(device.values[spec.id]) } }
+        return SimEffect()
+    }
+    private func miniBrightness(_ device: AppModel.DeviceEntry) -> Double {
+        if case .int(let value)? = device.values["brightness"] { return Double(value) / 100 }
+        return 1
     }
 
     private func remapRow(_ remap: RemapController) -> some View {
@@ -184,14 +221,7 @@ private struct DeviceCard: View {
                 profileMenu
             }
             ForEach(quickSpecs) { spec in quickControl(spec) }
-            if device.specs.contains(where: { if case .dpiStages = $0.kind { true } else { false } }) {
-                HStack(spacing: 10) {
-                    Text("DPI presets").font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
-                    Spacer()
-                    Button { model.cycleDPI(for: device.id) } label: { Label("Next", systemImage: "arrow.triangle.2.circlepath") }
-                        .buttonStyle(PillButtonStyle())
-                }
-            }
+            dpiChips
             if let lighting = lightingSpec { lightingMenu(lighting) }
         }
         .padding(14).flatSurface(cornerRadius: Theme.cardRadius)
@@ -230,22 +260,54 @@ private struct DeviceCard: View {
     private func lightingMenu(_ spec: ControlSpec) -> some View {
         let modes: [String] = { if case .lighting(let modes, _) = spec.kind { return modes }; return [] }()
         let current = LightingModes.mode(of: device.values[spec.id])
-        return HStack(spacing: 10) {
-            Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
-            Menu {
-                ForEach(modes, id: \.self) { mode in
-                    Button {
-                        model.set(LightingModes.value(for: mode, color: currentColor(spec)), capability: spec.id, on: device.id)
-                    } label: {
-                        if mode == current { Label { Titles.lightingMode(mode) } icon: { Image(systemName: "checkmark") } } else { Titles.lightingMode(mode) }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+                Spacer()
+                Menu {
+                    ForEach(modes, id: \.self) { mode in
+                        Button {
+                            model.set(LightingModes.value(for: mode, color: currentColor(spec)), capability: spec.id, on: device.id)
+                        } label: {
+                            if mode == current { Label { Titles.lightingMode(mode) } icon: { Image(systemName: "checkmark") } } else { Titles.lightingMode(mode) }
+                        }
+                    }
+                } label: {
+                    if let current { Titles.lightingMode(current) } else { Text("Lighting mode") }
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+                .accessibilityLabel(Text("Lighting mode"))
+            }
+            if current != "off", current.map(LightingModes.usesColor) ?? true {
+                HStack(spacing: 7) {
+                    ForEach(LEDPalette.colors, id: \.hex) { swatch in
+                        Button { model.set(LightingModes.value(for: current ?? "static", color: swatch), capability: spec.id, on: device.id) } label: {
+                            Circle().fill(swatch.color).frame(width: 20, height: 20)
+                                .overlay(Circle().strokeBorder(.primary.opacity(0.25), lineWidth: 1))
+                                .overlay { if swatch == currentColor(spec) { Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).foregroundStyle(swatch.isLight ? .black : .white) } }
+                        }
+                        .buttonStyle(.plain).help(Text(verbatim: "#" + swatch.hex))
                     }
                 }
-            } label: {
-                if let current { Titles.lightingMode(current) } else { Text("Lighting mode") }
             }
-            .menuStyle(.borderlessButton).fixedSize()
-            .accessibilityLabel(Text("Lighting mode"))
-            Spacer()
+        }
+    }
+
+    /// DPI presets as one-tap chips.
+    @ViewBuilder private var dpiChips: some View {
+        if case .text(let text)? = device.values["dpi_stages"], let stages = DPIStages(text: text) {
+            let current: Int? = { if case .int(let value)? = device.values["dpi"] { value } else { nil } }()
+            HStack(spacing: 6) {
+                ForEach(Array(stages.values.enumerated()), id: \.offset) { _, value in
+                    Button { model.set(.int(value), capability: "dpi", on: device.id) } label: {
+                        Text(verbatim: "\(value)").font(.caption.weight(.semibold).monospacedDigit())
+                            .frame(maxWidth: .infinity).padding(.vertical, 6)
+                            .background(device.accent.opacity(value == current ? 0.3 : 0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(device.accent.opacity(value == current ? 0.7 : 0), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 

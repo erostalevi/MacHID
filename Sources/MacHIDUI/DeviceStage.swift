@@ -6,6 +6,7 @@ struct DeviceStage: View {
     @Bindable var model: AppModel
     let device: AppModel.DeviceEntry
     var remap: RemapController?
+    var scenes: LightingScenesController?
     var onPick: (String) -> Void = { _ in }
 
     var body: some View {
@@ -23,10 +24,11 @@ struct DeviceStage: View {
             MouseSimView(accent: device.accent, lightsOn: lightsOn, dpi: intValue("dpi"), selected: model.selectedInput,
                          remapped: remappedMouseButtons, onSelect: { id in model.selectedInput = id; onPick(id) })
         case .keyboard where layout != nil:
-            KeyboardSimView(layout: layout!, effect: keyboardEffect, brightness: brightness, selected: painting ? nil : model.selectedInput,
-                            remapped: painting ? [] : remappedKeys, dragSelects: painting,
+            KeyboardSimView(layout: layout!, effect: keyboardEffect, scene: sceneOnBoard, externalEvents: scenes?.keyEvents ?? [], brightness: brightness, selected: painting || paintingScene ? nil : model.selectedInput,
+                            remapped: painting || paintingScene ? [] : remappedKeys, dragSelects: painting || paintingScene,
                             onSelect: { id in
-                                if painting { model.paintKey(id, on: device.id) } else { model.selectedInput = id; onPick(id) }
+                                if paintingScene, let scenes, let layout { scenes.paint(keyID: id, color: model.brush, layout: layout) }
+                                else if painting { model.paintKey(id, on: device.id) } else { model.selectedInput = id; onPick(id) }
                             })
                 .padding(.horizontal, 24)
         case .camera:
@@ -40,6 +42,12 @@ struct DeviceStage: View {
 
     private var layout: KeyboardLayout? { KeyboardLayout.layout(forDefinitionID: device.definition?.id) }
     private var painting: Bool { model.isPainting(device) }
+    private var paintingScene: Bool { scenes?.paintingLayerID != nil && model.selectedSection == .lighting }
+    /// The scene to draw: the running one, or the one being edited while the editor is open on this device.
+    private var sceneOnBoard: LightingScene? {
+        guard let scenes, scenes.enabled else { return nil }
+        return model.selectedSection == .lighting ? scenes.editingScene ?? scenes.currentScene : scenes.currentScene
+    }
 
     private var keyboardEffect: SimEffect {
         if model.perKeyActive.contains(device.id) {

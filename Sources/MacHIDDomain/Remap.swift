@@ -30,6 +30,45 @@ public enum RemapAction: Codable, Equatable, Sendable {
     case mouseButton(Int)
     case macro(String)
     case disable
+    /// Switches to the profile with this id (see `RemapDecision.switchProfile`).
+    case switchProfile(String)
+    case nextProfile
+    case previousProfile
+    /// Flips a shift mode on or off, whatever its own trigger or behavior.
+    case toggleShiftMode(String)
+}
+
+public enum ShiftBehavior: String, Codable, Sendable, CaseIterable { case hold, toggle }
+
+/// A layer: while it is active, rules that list its id apply. Several modes can be active at once.
+public struct ShiftMode: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public var name: String
+    /// The key or button that drives the mode. It is consumed (never reaches apps) while the mode exists.
+    public var trigger: InputTrigger
+    public var behavior: ShiftBehavior
+    /// False: the mode only affects inputs of the same `InputKind` as its trigger (keyboard vs mouse is the closest scope
+    /// the event tap can offer, it cannot tell two keyboards apart). True: it affects every input.
+    public var affectsOtherDevices: Bool
+
+    public init(id: String, name: String, trigger: InputTrigger, behavior: ShiftBehavior = .hold, affectsOtherDevices: Bool = true) {
+        self.id = id
+        self.name = name
+        self.trigger = trigger
+        self.behavior = behavior
+        self.affectsOtherDevices = affectsOtherDevices
+    }
+
+    /// Triggers that can never drive a mode: left/right clicks (the tap does not see them, and consuming them could lock
+    /// the user out) and Escape (kept free for the Force Quit shortcut).
+    public static func isAllowedTrigger(_ trigger: InputTrigger) -> Bool {
+        switch trigger.kind {
+        case .mouseButton: trigger.code >= 2
+        case .keyboard: trigger.code != 53 && trigger.code >= 0
+        }
+    }
+
+    public var hasAllowedTrigger: Bool { Self.isAllowedTrigger(trigger) }
 }
 
 public struct RemapRule: Codable, Equatable, Sendable, Identifiable {
@@ -39,13 +78,28 @@ public struct RemapRule: Codable, Equatable, Sendable, Identifiable {
     public var enabled: Bool
     /// When set, the rule only applies while this app is in front, and wins over a global rule.
     public var appBundleID: String?
+    /// The rule applies only while ALL of these shift modes are active. Empty is the base layer.
+    public var shiftModeIDs: [String]
 
-    public init(id: String, trigger: InputTrigger, action: RemapAction, enabled: Bool = true, appBundleID: String? = nil) {
+    public init(id: String, trigger: InputTrigger, action: RemapAction, enabled: Bool = true, appBundleID: String? = nil,
+                shiftModeIDs: [String] = []) {
+        self.shiftModeIDs = shiftModeIDs
         self.id = id
         self.trigger = trigger
         self.action = action
         self.enabled = enabled
         self.appBundleID = appBundleID
+    }
+}
+
+extension RemapRule {
+    /// Files written before shift modes have no `shiftModeIDs`.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(String.self, forKey: .id), trigger: try c.decode(InputTrigger.self, forKey: .trigger),
+                  action: try c.decode(RemapAction.self, forKey: .action), enabled: try c.decode(Bool.self, forKey: .enabled),
+                  appBundleID: try c.decodeIfPresent(String.self, forKey: .appBundleID),
+                  shiftModeIDs: try c.decodeIfPresent([String].self, forKey: .shiftModeIDs) ?? [])
     }
 }
 
@@ -142,15 +196,43 @@ public struct RemapConfig: Codable, Equatable, Sendable {
     public var shellMacrosEnabled = true
     public var rules: [RemapRule] = []
     public var macros: [Macro] = []
+    public var shiftModes: [ShiftMode] = []
 
     public init() {}
 
+    /// Additive format: every key added after schema 1 is optional, so older files decode unchanged (no version bump).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        shellMacrosEnabled = try c.decodeIfPresent(Bool.self, forKey: .shellMacrosEnabled) ?? true
+        rules = try c.decodeIfPresent([RemapRule].self, forKey: .rules) ?? []
+        macros = try c.decodeIfPresent([Macro].self, forKey: .macros) ?? []
+        shiftModes = try c.decodeIfPresent([ShiftMode].self, forKey: .shiftModes) ?? []
+    }
+
+    public func shiftMode(id: String) -> ShiftMode? { shiftModes.first { $0.id == id } }
+
+    public func upsertingShiftMode(_ mode: ShiftMode) -> RemapConfig {
+        var copy = self
+        if let index = copy.shiftModes.firstIndex(where: { $0.id == mode.id }) { copy.shiftModes[index] = mode } else { copy.shiftModes.append(mode) }
+        return copy
+    }
+
+    /// Removing a mode also removes the rules that need it or would toggle it.
+    public func removingShiftMode(id: String) -> RemapConfig {
+        var copy = self
+        copy.shiftModes.removeAll { $0.id == id }
+        copy.rules.removeAll { $0.shiftModeIDs.contains(id) || $0.action == .toggleShiftMode(id) }
+        return copy
+    }
+
     public func macro(id: String) -> Macro? { macros.first { $0.id == id } }
 
-    /// At most one rule per trigger and app scope.
+    /// At most one rule per trigger, app scope and set of shift modes.
     public func upserting(_ rule: RemapRule) -> RemapConfig {
         var copy = self
-        copy.rules.removeAll { $0.id == rule.id || ($0.trigger == rule.trigger && $0.appBundleID == rule.appBundleID) }
+        copy.rules.removeAll { $0.id == rule.id || ($0.trigger == rule.trigger && $0.appBundleID == rule.appBundleID && Set($0.shiftModeIDs) == Set(rule.shiftModeIDs)) }
         copy.rules.append(rule)
         return copy
     }

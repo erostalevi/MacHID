@@ -6,6 +6,7 @@ struct DeviceSidebar: View {
     @Bindable var model: AppModel
     let device: AppModel.DeviceEntry
     var remap: RemapController?
+    var scenes: LightingScenesController?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var section: ControlSection {
@@ -73,7 +74,7 @@ struct DeviceSidebar: View {
         case .buttons:
             ButtonsPanel(model: model, device: device, remap: remap)
         default:
-            SpecsPanel(model: model, device: device, section: section)
+            SpecsPanel(model: model, device: device, section: section, scenes: scenes, remap: remap)
         }
     }
 }
@@ -83,17 +84,20 @@ struct SpecsPanel: View {
     @Bindable var model: AppModel
     let device: AppModel.DeviceEntry
     let section: ControlSection
+    var scenes: LightingScenesController?
+    var remap: RemapController?
 
     private struct Block { let id: String; let title: Text?; let specs: [ControlSpec] }
 
     /// Specs that share a group go on one card; the rest get a card each.
-    private func blocks(of specs: [ControlSpec], hidingEffects: Bool) -> [Block] {
+    private func blocks(of specs: [ControlSpec], hidingEffects: Bool, hidingBrightness: Bool = false) -> [Block] {
         var result: [Block] = []
         // Automatic switches come first in a group: the manual control below them is disabled while they are on.
         let ordered = specs.enumerated().sorted { ($0.element.id.hasSuffix("_auto") ? 0 : 1, $0.offset) < ($1.element.id.hasSuffix("_auto") ? 0 : 1, $1.offset) }.map(\.element)
         for spec in ordered {
             if case .keyLighting = spec.kind { continue }
             if hidingEffects, case .lighting = spec.kind { continue }
+            if hidingBrightness, spec.capability.type == .brightness { continue }
             if let key = spec.group {
                 if let index = result.firstIndex(where: { $0.id == key }) {
                     result[index] = Block(id: key, title: result[index].title, specs: result[index].specs + [spec])
@@ -112,16 +116,31 @@ struct SpecsPanel: View {
         let hasKeys = section == .lighting && specs.contains { if case .keyLighting = $0.kind { true } else { false } }
         let painting = model.perKeyActive.contains(device.id)
         VStack(alignment: .leading, spacing: Theme.gap) {
-            if hasKeys {
+            let hasLighting = section == .lighting && specs.contains { if case .lighting = $0.kind { true } else { false } }
+            let scenesOn = scenes?.enabled ?? false
+            if section == .lighting, scenes != nil, hasKeys || hasLighting {
+                Card {
+                    Segmented(options: LightingTool.available(hasKeys: hasKeys), selection: Binding(get: { scenesOn ? .scenes : (painting ? .perKey : .effects) }, set: { tool in
+                        switch tool {
+                        case .effects: scenes?.setEnabled(false); model.setPerKey(false, for: device.id)
+                        case .perKey: scenes?.setEnabled(false); model.setPerKey(true, for: device.id)
+                        case .scenes: if painting { model.setPerKey(false, for: device.id) }; scenes?.setEnabled(true)
+                        }
+                    }), tint: device.accent) { $0.title }
+                }
+            } else if hasKeys {
                 Card {
                     Segmented(options: [false, true], selection: Binding(get: { painting }, set: { model.setPerKey($0, for: device.id) }),
                               tint: device.accent) { $0 ? Text("Per key") : Text("Effects") }
                 }
             }
-            if hasKeys && painting {
+            if section == .lighting, scenesOn, let scenes {
+                LightingScenesPanel(scenes: scenes, remap: remap, accent: device.accent)
+            }
+            if hasKeys && painting && !scenesOn {
                 PerKeyCard(model: model, device: device)
             }
-            ForEach(blocks(of: specs, hidingEffects: hasKeys && painting), id: \.id) { block in
+            ForEach(blocks(of: specs, hidingEffects: (hasKeys && painting) || (section == .lighting && scenesOn), hidingBrightness: section == .lighting && scenesOn), id: \.id) { block in
                 Card(title: block.title) {
                     ForEach(block.specs) { spec in ControlRow(model: model, device: device, spec: spec) }
                 }
@@ -147,26 +166,28 @@ struct SpecsPanel: View {
 struct PerKeyCard: View {
     @Bindable var model: AppModel
     let device: AppModel.DeviceEntry
-    private static let swatches: [Color] = [.red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .white]
 
     var body: some View {
         Card(title: Text("Paint")) {
             Text("Click or drag over the keys to color them.").font(.callout).foregroundStyle(.secondary)
-            FlowRow(spacing: 10) {
-                ForEach(Self.swatches, id: \.self) { swatch in
-                    Button { model.brush = RGBColor(swatch) } label: {
-                        Circle().fill(swatch).frame(width: 24, height: 24)
-                            .overlay(Circle().strokeBorder(.white.opacity(0.6), lineWidth: 1))
-                            .overlay { if RGBColor(swatch) == model.brush { Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(.black.opacity(0.7)) } }
-                    }
-                    .buttonStyle(.plain)
-                }
-                ColorPicker("", selection: Binding(get: { model.brush.color }, set: { model.brush = RGBColor($0) }), supportsOpacity: false).labelsHidden()
-            }
+            ColorField(selected: model.brush) { model.brush = $0 }
             HStack {
                 Button("Fill all") { model.fillKeys(with: model.brush, for: device.id) }.buttonStyle(PillButtonStyle())
                 Button("Clear") { model.fillKeys(with: nil, for: device.id) }.buttonStyle(PillButtonStyle())
             }
+        }
+    }
+}
+
+/// How the lighting of a device is driven.
+enum LightingTool: Hashable {
+    case effects, perKey, scenes
+    static func available(hasKeys: Bool) -> [LightingTool] { hasKeys ? [.effects, .perKey, .scenes] : [.effects, .scenes] }
+    var title: Text {
+        switch self {
+        case .effects: Text("Effects")
+        case .perKey: Text("Per key")
+        case .scenes: Text("Scenes")
         }
     }
 }

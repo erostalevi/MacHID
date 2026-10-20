@@ -9,6 +9,8 @@ struct KeyRecorder: View {
 
     let capture: Capture
     let current: InputTrigger?
+    /// Also record a lone modifier key (fn, right Option, Caps Lock...). Used for shift mode triggers.
+    var allowsModifierKeys = false
     let onRecord: (InputTrigger) -> Void
 
     @State private var recording = false
@@ -29,8 +31,14 @@ struct KeyRecorder: View {
 
     private func start() {
         recording = true
-        monitor = NSEvent.addLocalMonitorForEvents(matching: capture == .keyOrMouse ? [.keyDown, .otherMouseDown] : [.keyDown]) { event in
-            if event.type == .keyDown {
+        var mask: NSEvent.EventTypeMask = capture == .keyOrMouse ? [.keyDown, .otherMouseDown] : [.keyDown]
+        if allowsModifierKeys { mask.insert(.flagsChanged) }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
+            if event.type == .flagsChanged {
+                // Only a press counts (the flag for that key is now set), not its release.
+                guard let flag = KeyNames.modifierFlag(forCode: Int(event.keyCode)), event.modifierFlags.contains(flag) else { return nil }
+                onRecord(InputTrigger(kind: .keyboard, code: Int(event.keyCode)))
+            } else if event.type == .keyDown {
                 if event.keyCode == 53 && event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
                     stop()                                 // a bare Escape cancels the recording
                     return nil

@@ -20,12 +20,45 @@ final class LockedEngine: @unchecked Sendable {
     private let lock = NSLock()
     private var engine = RemapEngine()
     private var frontmost: String?
+    private var lastModes: Set<String> = []
+    /// Called (outside the lock) whenever the set of active shift modes changes.
+    var onModesChanged: (@Sendable (Set<String>) -> Void)?
 
-    func update(config: RemapConfig) -> [OutputEvent] { lock.lock(); defer { lock.unlock() }; return engine.update(config: config) }
+    func update(config: RemapConfig) -> [OutputEvent] {
+        lock.lock()
+        let releases = engine.update(config: config)
+        let changed = modesChange()
+        lock.unlock()
+        if let changed { onModesChanged?(changed) }
+        return releases
+    }
+
+    func reset() -> [OutputEvent] {
+        lock.lock()
+        let releases = engine.resetTransientState()
+        let changed = modesChange()
+        lock.unlock()
+        if let changed { onModesChanged?(changed) }
+        return releases
+    }
+
     func setFrontmost(_ id: String?) { lock.lock(); frontmost = id; lock.unlock() }
+
     func decide(_ event: InputEvent) -> RemapDecision {
-        lock.lock(); defer { lock.unlock() }
-        return engine.decide(event, frontmostBundleID: frontmost)
+        lock.lock()
+        let decision = engine.decide(event, frontmostBundleID: frontmost)
+        let changed = modesChange()
+        lock.unlock()
+        if let changed { onModesChanged?(changed) }
+        return decision
+    }
+
+    /// Must be called with the lock held.
+    private func modesChange() -> Set<String>? {
+        let now = engine.activeShiftModeIDs
+        guard now != lastModes else { return nil }
+        lastModes = now
+        return now
     }
 }
 
@@ -40,6 +73,13 @@ public final class RemapController {
     public private(set) var recentRuns: [MacroLogEntry] = []
     public var banner: String?
     public private(set) var isRunning = false
+    /// Shift modes that are active right now (updated on the main actor as the user holds or toggles triggers).
+    public private(set) var activeShiftModes: Set<String> = []
+    /// The app wires these: a rule asked for a profile by id, or for the next (+1) / previous (-1) one.
+    @ObservationIgnored public var onSwitchProfile: (@MainActor (String) -> Void)?
+    @ObservationIgnored public var onCycleProfile: (@MainActor (Int) -> Void)?
+    /// Lets a lighting controller react to layers; receives the full set of active mode ids.
+    @ObservationIgnored public var onShiftModesChanged: ((Set<String>) -> Void)?
     /// Macros pinned to the menu bar panel; kept in UserDefaults.
     public private(set) var favoriteMacroIDs: [String] = UserDefaults.standard.stringArray(forKey: RemapController.favoritesKey) ?? []
     static let favoritesKey = "macros.favorites"
@@ -72,6 +112,15 @@ public final class RemapController {
         self.permissionPoll = permissionPoll
         self.poster = poster
         self.makeTap = makeTap
+        engine.onModesChanged = { [weak self] ids in
+            Task { @MainActor in self?.shiftModesChanged(ids) }
+        }
+    }
+
+    private func shiftModesChanged(_ ids: Set<String>) {
+        guard ids != activeShiftModes else { return }
+        activeShiftModes = ids
+        onShiftModesChanged?(ids)
     }
 
     // MARK: Lifecycle
@@ -121,7 +170,18 @@ public final class RemapController {
 
     private func startTap() {
         if tap == nil {
-            tap = makeTap({ [engine] in engine.decide($0) }, { [weak self] id in
+            tap = makeTap({ [engine, weak self] event in
+                // Profile switches are carried out here, on the main actor; the tap just swallows the key.
+                switch engine.decide(event) {
+                case .switchProfile(let id):
+                    Task { @MainActor in self?.onSwitchProfile?(id) }
+                    return .suppress
+                case .cycleProfile(let step):
+                    Task { @MainActor in self?.onCycleProfile?(step) }
+                    return .suppress
+                case let decision: return decision
+                }
+            }, { [weak self] id in
                 Task { @MainActor in await self?.run(macroID: id) }
             })
         }
@@ -132,6 +192,9 @@ public final class RemapController {
     private func stopTap() {
         tap?.stop()
         isActive = false
+        // A mode held or toggled when the tap stops must not stay on.
+        let releases = engine.reset()
+        if !releases.isEmpty { Task { for event in releases { await poster?.post(event) } } }
     }
 
     // MARK: Editing (every change is saved and reaches the engine at once)
@@ -156,6 +219,27 @@ public final class RemapController {
     public func setRule(_ id: String, enabled: Bool) async {
         await update { if let index = $0.rules.firstIndex(where: { $0.id == id }) { $0.rules[index].enabled = enabled } }
     }
+
+    // MARK: Shift modes
+
+    /// Adds or replaces a mode. Refused (with a banner) for triggers that could lock the user out: left/right clicks and Escape.
+    @discardableResult
+    public func upsertShiftMode(_ mode: ShiftMode) async -> Bool {
+        guard mode.hasAllowedTrigger else {
+            banner = "That key or button cannot be a shift trigger."
+            return false
+        }
+        var clean = mode
+        clean.name = String(mode.name.prefix(60))
+        await update { $0 = $0.upsertingShiftMode(clean) }
+        return true
+    }
+
+    @discardableResult public func addShiftMode(_ mode: ShiftMode) async -> Bool { await upsertShiftMode(mode) }
+    @discardableResult public func updateShiftMode(_ mode: ShiftMode) async -> Bool { await upsertShiftMode(mode) }
+
+    /// Removes the mode and every rule that needs it or toggles it.
+    public func removeShiftMode(_ id: String) async { await update { $0 = $0.removingShiftMode(id: id) } }
 
     /// Saves a macro. Its approval stays attached, but only counts while the steps are unchanged.
     public func saveMacro(_ macro: Macro) async {

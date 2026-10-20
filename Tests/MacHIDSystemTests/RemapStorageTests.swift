@@ -80,3 +80,19 @@ private func tempURL(_ name: String) -> URL {
     #expect(MacroFingerprint.of(macro, key: one) != MacroFingerprint.of(macro, key: two))   // a hash forged without the key does not verify
     #expect(MacroFingerprint.of(macro, key: two).count == 64)
 }
+
+@Suite struct ShiftModeStorageTests {
+    @Test func shiftModesPersistAndOldFilesStillLoad() async throws {
+        let url = tempURL("remap.json")
+        let repository = FileRemapRepository(url: url)
+        var config = RemapConfig()
+        config.shiftModes = [ShiftMode(id: "m", name: "Layer", trigger: InputTrigger(kind: .keyboard, code: 63), behavior: .toggle, affectsOtherDevices: false)]
+        config.rules = [RemapRule(id: "r", trigger: InputTrigger(kind: .keyboard, code: 5), action: .nextProfile, shiftModeIDs: ["m"])]
+        try await repository.save(config)
+        #expect(try await repository.load() == config)
+        let old = #"{"schemaVersion":1,"enabled":true,"shellMacrosEnabled":true,"macros":[],"rules":[]}"#
+        try Data(old.utf8).write(to: url)
+        let loaded = try await repository.load()
+        #expect(loaded.enabled && loaded.shiftModes.isEmpty)
+    }
+}

@@ -3,6 +3,8 @@ import AppKit
 import MacHIDDomain
 
 /// Settings: start at login, automatic profiles, per-device defaults and per-app rules.
+enum SettingsStore { static let pageKey = "settings.page" }
+
 public struct SettingsView: View {
     @Bindable var model: AppModel
     @Bindable var remap: RemapController
@@ -37,7 +39,8 @@ public struct SettingsView: View {
         }
     }
 
-    @State private var page: Page = .general
+    @AppStorage(SettingsStore.pageKey) private var pageRaw = Page.general.rawValue
+    private var page: Page { get { Page(rawValue: pageRaw) ?? .general } nonmutating set { pageRaw = newValue.rawValue } }
     @Namespace private var pageSpace
 
     public var body: some View {

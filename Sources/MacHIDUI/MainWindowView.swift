@@ -6,11 +6,13 @@ public struct MainWindowView: View {
     @Bindable var model: AppModel
     @State private var savingProfile = false
     @State private var profileName = ""
+    @State private var dropTarget: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OnboardingStore.key) private var onboardingDone = false
     var remap: RemapController?
+    var scenes: LightingScenesController?
 
-    public init(model: AppModel, remap: RemapController? = nil) { self.model = model; self.remap = remap }
+    public init(model: AppModel, remap: RemapController? = nil, scenes: LightingScenesController? = nil) { self.model = model; self.remap = remap; self.scenes = scenes }
 
     public var body: some View {
         ZStack {
@@ -18,7 +20,7 @@ public struct MainWindowView: View {
                 HStack(spacing: 0) {
                     stage(device)
                     Rectangle().fill(Color.primary.opacity(0.10)).frame(width: 1).padding(.vertical, 18)
-                    DeviceSidebar(model: model, device: device, remap: remap)
+                    DeviceSidebar(model: model, device: device, remap: remap, scenes: scenes)
                 }
             } else if !model.hasScanned {
                 loadingState
@@ -43,7 +45,7 @@ public struct MainWindowView: View {
 
     private func stage(_ device: AppModel.DeviceEntry) -> some View {
         ZStack {
-            DeviceStage(model: model, device: device, remap: remap) { _ in
+            DeviceStage(model: model, device: device, remap: remap, scenes: scenes) { _ in
                 withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedSection = .buttons }
             }
             VStack(spacing: 0) {
@@ -92,10 +94,29 @@ public struct MainWindowView: View {
                 .buttonStyle(.plain)
                 .help(Text(verbatim: entry.name))
                 .accessibilityLabel(Text(verbatim: entry.name))
+                .draggable(entry.id) { dockPreview(entry) }
+                .dropDestination(for: String.self) { items, _ in
+                    guard let id = items.first else { return false }
+                    withAnimation(Motion(reduce: reduceMotion).snappy) { model.moveDevice(id, onto: entry.id) }
+                    return true
+                } isTargeted: { targeted in dropTarget = targeted ? entry.id : (dropTarget == entry.id ? nil : dropTarget) }
+                .overlay(alignment: .leading) {
+                    if dropTarget == entry.id { Capsule().fill(entry.accent).frame(width: 3, height: 26).offset(x: -4) }
+                }
+                .contextMenu {
+                    Button("Move left") { withAnimation(Motion(reduce: reduceMotion).snappy) { model.shiftDevice(entry.id, by: -1) } }
+                    Button("Move right") { withAnimation(Motion(reduce: reduceMotion).snappy) { model.shiftDevice(entry.id, by: 1) } }
+                }
             }
         }
         .padding(4)
         .flatSurface(cornerRadius: Theme.chipRadius + 4)
+        .animation(Motion(reduce: reduceMotion).snappy, value: model.devices.map(\.id))
+    }
+
+    private func dockPreview(_ entry: AppModel.DeviceEntry) -> some View {
+        Image(systemName: Titles.symbol(for: entry.category)).font(.system(size: 16)).frame(width: 44, height: 36)
+            .foregroundStyle(entry.accent).flatSurface(cornerRadius: Theme.chipRadius)
     }
 
     private func profileMenu(_ device: AppModel.DeviceEntry) -> some View {

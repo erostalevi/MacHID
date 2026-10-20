@@ -3146,6 +3146,732 @@
           }
         }
       }
+    },
+    "Hex color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color hexadecimal"
+          }
+        }
+      }
+    },
+    "Pick any color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir cualquier color"
+          }
+        }
+      }
+    },
+    "RRGGBB": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RRGGBB"
+          }
+        }
+      }
+    },
+    "Create a macro…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear una macro…"
+          }
+        }
+      }
+    },
+    "Move left": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover a la izquierda"
+          }
+        }
+      }
+    },
+    "Move right": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover a la derecha"
+          }
+        }
+      }
+    },
+    "Switch profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar de perfil"
+          }
+        }
+      }
+    },
+    "Toggle a shift mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar o desactivar un modo shift"
+          }
+        }
+      }
+    },
+    "Works as on the base layer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funciona como en la capa base."
+          }
+        }
+      }
+    },
+    "No profiles yet. Save one from the profile menu at the top of the window.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay perfiles. Guarda uno desde el menú de perfil en la parte superior de la ventana."
+          }
+        }
+      }
+    },
+    "Next profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perfil siguiente"
+          }
+        }
+      }
+    },
+    "Previous profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perfil anterior"
+          }
+        }
+      }
+    },
+    "Applies to every connected device that has settings in that profile.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se aplica a todos los dispositivos conectados que tengan ajustes en ese perfil."
+          }
+        }
+      }
+    },
+    "Create a shift mode first (below).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea primero un modo shift (abajo)."
+          }
+        }
+      }
+    },
+    "Missing profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perfil no encontrado"
+          }
+        }
+      }
+    },
+    "Missing shift mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo shift no encontrado"
+          }
+        }
+      }
+    },
+    "Layer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capa"
+          }
+        }
+      }
+    },
+    "Base": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base"
+          }
+        }
+      }
+    },
+    "Editing what keys do normally.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editando lo que hacen las teclas normalmente."
+          }
+        }
+      }
+    },
+    "Editing what keys do while these shift modes are held together.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editando lo que hacen las teclas mientras estos modos shift están activos a la vez."
+          }
+        }
+      }
+    },
+    "Shift modes": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modos shift"
+          }
+        }
+      }
+    },
+    "A shift mode changes what other keys and buttons do while it is on. Make as many as you like; they work independently and can be combined.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un modo shift cambia lo que hacen otras teclas y botones mientras está activo. Crea los que quieras; funcionan de forma independiente y se pueden combinar."
+          }
+        }
+      }
+    },
+    "New shift mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuevo modo shift"
+          }
+        }
+      }
+    },
+    "Shift %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shift %lld"
+          }
+        }
+      }
+    },
+    "Remove shift mode and its rules": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar el modo shift y sus reglas"
+          }
+        }
+      }
+    },
+    "Trigger": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activador"
+          }
+        }
+      }
+    },
+    "While held": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mientras se mantiene"
+          }
+        }
+      }
+    },
+    "Toggle on/off": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar/desactivar"
+          }
+        }
+      }
+    },
+    "Also shifts other devices": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "También cambia otros dispositivos"
+          }
+        }
+      }
+    },
+    "Keyboard and mouse both change.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambian el teclado y el ratón."
+          }
+        }
+      }
+    },
+    "Only the same kind of device changes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo cambia el mismo tipo de dispositivo."
+          }
+        }
+      }
+    },
+    "Reactive lighting needs Input Monitoring.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La iluminación reactiva necesita Monitorización de entrada."
+          }
+        }
+      }
+    },
+    "New scene": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nueva escena"
+          }
+        }
+      }
+    },
+    "copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "copia"
+          }
+        }
+      }
+    },
+    "Scenes layer several effects, for example a slow wave with keys that flash when pressed, and can change while a shift mode is held. They run on every device with lighting.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las escenas combinan varios efectos, por ejemplo una ola lenta con teclas que destellan al pulsarlas, y pueden cambiar mientras se mantiene un modo shift. Se ejecutan en todos los dispositivos con iluminación."
+          }
+        }
+      }
+    },
+    "Scenes": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escenas"
+          }
+        }
+      }
+    },
+    "%lld layers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld capas"
+          }
+        }
+      }
+    },
+    "Running": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En ejecución"
+          }
+        }
+      }
+    },
+    "New": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nueva"
+          }
+        }
+      }
+    },
+    "Duplicate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicar"
+          }
+        }
+      }
+    },
+    "Delete scene": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar escena"
+          }
+        }
+      }
+    },
+    "When it runs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo se ejecuta"
+          }
+        }
+      }
+    },
+    "Normally": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalmente"
+          }
+        }
+      }
+    },
+    "While these are held": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mientras se mantienen"
+          }
+        }
+      }
+    },
+    "Add shift scene": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir escena para shift"
+          }
+        }
+      }
+    },
+    "Create shift modes in Buttons to use a different scene while one is held.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea modos shift en Botones para usar otra escena mientras uno está activo."
+          }
+        }
+      }
+    },
+    "Scene": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escena"
+          }
+        }
+      }
+    },
+    "Solid color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color sólido"
+          }
+        }
+      }
+    },
+    "Rainbow ripple": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onda arcoíris"
+          }
+        }
+      }
+    },
+    "Gradient": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Degradado"
+          }
+        }
+      }
+    },
+    "Painted keys": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teclas pintadas"
+          }
+        }
+      }
+    },
+    "Add layer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir capa"
+          }
+        }
+      }
+    },
+    "Move down": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bajar"
+          }
+        }
+      }
+    },
+    "Move up": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subir"
+          }
+        }
+      }
+    },
+    "Remove layer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar capa"
+          }
+        }
+      }
+    },
+    "Opacity": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opacidad"
+          }
+        }
+      }
+    },
+    "Blend": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mezcla"
+          }
+        }
+      }
+    },
+    "Density": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Densidad"
+          }
+        }
+      }
+    },
+    "Fade": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desvanecimiento"
+          }
+        }
+      }
+    },
+    "Ripple outwards": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onda hacia afuera"
+          }
+        }
+      }
+    },
+    "From": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desde"
+          }
+        }
+      }
+    },
+    "To": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta"
+          }
+        }
+      }
+    },
+    "Angle": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo"
+          }
+        }
+      }
+    },
+    "%lld keys painted": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld teclas pintadas"
+          }
+        }
+      }
+    },
+    "Paint keys": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pintar teclas"
+          }
+        }
+      }
+    },
+    "Done painting": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminar de pintar"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

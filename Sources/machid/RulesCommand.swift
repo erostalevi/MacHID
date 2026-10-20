@@ -36,8 +36,13 @@ func runRules() async throws {
         case .mouseButton(let button): action = "mouse button \(button)"
         case .macro(let id): action = "macro " + (remap.macro(id: id).map { "'\($0.name)'" } ?? "(missing)")
         case .disable: action = "disabled"
+        case .switchProfile(let id): action = "profile \(id)"
+        case .nextProfile: action = "next profile"
+        case .previousProfile: action = "previous profile"
+        case .toggleShiftMode(let id): action = "toggle mode " + (remap.shiftMode(id: id).map { "'\($0.name)'" } ?? "(missing)")
         }
-        let scope = rule.appBundleID.map { " in \($0)" } ?? ""
+        let layers = rule.shiftModeIDs.compactMap { remap.shiftMode(id: $0)?.name }
+        let scope = (rule.appBundleID.map { " in \($0)" } ?? "") + (layers.isEmpty ? "" : " while " + layers.joined(separator: "+"))
         print("  \(trigger) -> \(action)\(scope)\(rule.enabled ? "" : "  [off]")")
     }
 }

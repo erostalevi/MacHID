@@ -25,11 +25,13 @@ struct MacHIDApp: App {
     @State private var remap = RemapController.live()
     @State private var plugins: PluginsModel
     @State private var updater = UpdaterModel()
+    @State private var scenes: LightingScenesController
 
     init() {
         let model = AppModel.live()
         _model = State(initialValue: model)
         _plugins = State(initialValue: PluginsModel.live(app: model))
+        _scenes = State(initialValue: LightingScenesController(model: model))
     }
     @Environment(\.openWindow) private var openWindow
 
@@ -45,7 +47,13 @@ struct MacHIDApp: App {
                     }
                     delegate.onReopen = model.openMainWindow
                     model.start()
-                    Task { await remap.load() }
+                    remap.onSwitchProfile = { [model] id in Task { await model.applyProfileToAll(id) } }
+                    remap.onCycleProfile = { [model] step in Task { await model.cycleProfiles(step: step) } }
+                    Task {
+                        await remap.load()
+                        await scenes.load()
+                        remap.onShiftModesChanged = { [scenes] modes in Task { @MainActor in scenes.modesChanged(modes) } }
+                    }
                     Task {
                         await plugins.load()
                         model.onDevicesChanged = { [plugins] in await plugins.devicesChanged() }
@@ -58,7 +66,7 @@ struct MacHIDApp: App {
         .menuBarExtraStyle(.window)
 
         Window("MacHID", id: "main") {
-            MainWindowView(model: model, remap: remap)
+            MainWindowView(model: model, remap: remap, scenes: scenes)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

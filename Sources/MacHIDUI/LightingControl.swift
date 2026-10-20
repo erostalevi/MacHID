@@ -9,8 +9,6 @@ struct LightingControl: View {
     let value: SettingValue?
     let onChange: (SettingValue) -> Void
 
-    private static let swatches: [Color] = [.red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .white]
-
     private var effect: LightingEffect? { if case .effect(let e)? = value { e } else { nil } }
     private var mode: String { LightingModes.mode(of: value) ?? modes.first ?? "static" }
     private var options: LightingModeOptions? { zone?.modeOptions?[mode] }
@@ -75,21 +73,7 @@ struct LightingControl: View {
     }
 
     private func swatchRow(selected: Color, title: Text?, pick: @escaping (Color) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            title?.font(.caption).foregroundStyle(.secondary)
-            FlowRow(spacing: 10) {
-                ForEach(Self.swatches, id: \.self) { swatch in
-                    Button { pick(swatch) } label: {
-                        Circle().fill(swatch).frame(width: 24, height: 24)
-                            .overlay(Circle().strokeBorder(.white.opacity(0.6), lineWidth: 1))
-                            .overlay { if swatch == selected { Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(.black.opacity(0.7)) } }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text(verbatim: "\(swatch.description)"))
-                }
-                ColorPicker("", selection: Binding(get: { selected }, set: pick), supportsOpacity: false).labelsHidden()
-            }
-        }
+        ColorField(selected: RGBColor(selected), title: title) { pick($0.color) }
     }
 
     /// Discrete speed (Razer) or a period in milliseconds (Logitech); the slider always reads slow to fast.

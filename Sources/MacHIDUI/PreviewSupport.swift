@@ -61,7 +61,10 @@ extension PreviewSupport {
             Macro(id: "m2", name: "Backup notes", steps: [.shell("rsync -a ~/Notes ~/Backup/"), .open("com.apple.finder")], approvedFingerprint: "x"),
             Macro(id: "m3", name: "Imported helper", steps: [.shortcut("Morning")], imported: true),
         ]
+        config.shiftModes = [ShiftMode(id: "s1", name: "Fn layer", trigger: InputTrigger(kind: .keyboard, code: 61), behavior: .hold, affectsOtherDevices: true),
+                             ShiftMode(id: "s2", name: "Mouse shift", trigger: InputTrigger(kind: .mouseButton, code: 2), behavior: .toggle, affectsOtherDevices: false)]
         config.rules = [
+            RemapRule(id: "r4", trigger: InputTrigger(kind: .keyboard, code: 53), action: .nextProfile, shiftModeIDs: ["s1"]),
             RemapRule(id: "r1", trigger: InputTrigger(kind: .mouseButton, code: 3), action: .macro("m1")),
             RemapRule(id: "r2", trigger: InputTrigger(kind: .keyboard, code: 96, modifiers: [.function]), action: .key(code: 122, modifiers: [.command])),
             RemapRule(id: "r3", trigger: InputTrigger(kind: .keyboard, code: 57), action: .disable, enabled: false),

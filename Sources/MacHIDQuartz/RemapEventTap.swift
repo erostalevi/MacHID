@@ -19,7 +19,7 @@ public enum RemapPermissions {
 
 /// A Quartz event tap that asks the remap engine what to do with each key and mouse button event.
 ///
-/// It only sees key presses and the extra mouse buttons (not left/right clicks or movement), and it never looks at
+/// It only sees key presses, modifier-key changes and the extra mouse buttons (not left/right clicks or movement), and it never looks at
 /// text: events are reduced to a key code, modifiers and up/down before the engine sees them. Events MacHID sent
 /// itself are ignored, and Command-Option-Escape (Force Quit) is never touched.
 public final class RemapEventTap: @unchecked Sendable {
@@ -28,12 +28,20 @@ public final class RemapEventTap: @unchecked Sendable {
     private let handler: Handler
     private let poster: QuartzEventPoster
     private let runMacro: @Sendable (String) -> Void
+    private let switchProfile: @Sendable (String) -> Void
+    private let cycleProfile: @Sendable (Int) -> Void
+    /// Modifier flags of modifier keys whose press was consumed; removed from later events so apps never see them held.
+    private var consumedFlags: CGEventFlags = []
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
 
     public init(poster: QuartzEventPoster = QuartzEventPoster(),
                 handler: @escaping Handler,
-                runMacro: @escaping @Sendable (String) -> Void) {
+                runMacro: @escaping @Sendable (String) -> Void,
+                switchProfile: @escaping @Sendable (String) -> Void = { _ in },
+                cycleProfile: @escaping @Sendable (Int) -> Void = { _ in }) {
+        self.switchProfile = switchProfile
+        self.cycleProfile = cycleProfile
         self.poster = poster
         self.handler = handler
         self.runMacro = runMacro
@@ -43,7 +51,7 @@ public final class RemapEventTap: @unchecked Sendable {
     @discardableResult
     public func start() -> Bool {
         guard tap == nil, RemapPermissions.allGranted else { return false }
-        let types: [CGEventType] = [.keyDown, .keyUp, .otherMouseDown, .otherMouseUp]
+        let types: [CGEventType] = [.keyDown, .keyUp, .flagsChanged, .otherMouseDown, .otherMouseUp]
         let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
@@ -77,15 +85,40 @@ public final class RemapEventTap: @unchecked Sendable {
         }
         guard event.getIntegerValueField(.eventSourceUserData) != QuartzEventPoster.marker else { return Unmanaged.passUnretained(event) }
 
+        if type == .flagsChanged { return handleModifier(event) }
+
         let isKey = type == .keyDown || type == .keyUp
         let code = isKey ? Int(event.getIntegerValueField(.keyboardEventKeycode)) : Int(event.getIntegerValueField(.mouseEventButtonNumber))
+        // Force Quit is checked on the real flags, before any consumed modifier is removed.
+        let real = QuartzEventPoster.modifiers(from: event.flags)
+        if isKey, code == 53, real.contains(.command), real.contains(.option) { return Unmanaged.passUnretained(event) }
+        if !consumedFlags.isEmpty { event.flags.subtract(consumedFlags) }
         let modifiers = QuartzEventPoster.modifiers(from: event.flags)
-        if isKey, code == 53, modifiers.contains(.command), modifiers.contains(.option) { return Unmanaged.passUnretained(event) }   // Force Quit
 
         let input = InputEvent(kind: isKey ? .keyboard : .mouseButton, code: code, modifiers: modifiers,
                                isDown: type == .keyDown || type == .otherMouseDown,
                                isRepeat: isKey && event.getIntegerValueField(.keyboardEventAutorepeat) != 0)
-        switch handler(input) {
+        return apply(handler(input), to: event)
+    }
+
+    /// A modifier key changed: the flags say whether the key that moved is now down. Only keys that a rule or shift
+    /// mode asks for are consumed; any other modifier change goes through unchanged.
+    private func handleModifier(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let code = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        guard let info = Self.modifierKeys[code] else { return Unmanaged.passUnretained(event) }
+        let raw = event.flags.rawValue
+        let isDown = info.device != 0 ? (raw & info.device) != 0 : event.flags.contains(info.flag)
+        // The key's own bit is left out so a trigger written with no modifiers matches.
+        let flags = event.flags.subtracting(info.flag)
+        let input = InputEvent(kind: .keyboard, code: code, modifiers: QuartzEventPoster.modifiers(from: flags), isDown: isDown)
+        let decision = handler(input)
+        if case .passthrough = decision { return Unmanaged.passUnretained(event) }
+        if isDown { consumedFlags.insert(info.flag) } else { consumedFlags.remove(info.flag) }
+        return apply(decision, to: event)
+    }
+
+    private func apply(_ decision: RemapDecision, to event: CGEvent) -> Unmanaged<CGEvent>? {
+        switch decision {
         case .passthrough: return Unmanaged.passUnretained(event)
         case .suppress: return nil
         case .emit(let events):
@@ -94,6 +127,21 @@ public final class RemapEventTap: @unchecked Sendable {
         case .runMacro(let id):
             runMacro(id)
             return nil
+        case .switchProfile(let id):
+            switchProfile(id)
+            return nil
+        case .cycleProfile(let step):
+            cycleProfile(step)
+            return nil
         }
     }
+
+    /// Modifier key codes: generic flag plus the device-dependent bit that tells left from right (0 when there is none).
+    private static let modifierKeys: [Int: (flag: CGEventFlags, device: UInt64)] = [
+        54: (.maskCommand, 0x10), 55: (.maskCommand, 0x08),
+        56: (.maskShift, 0x02), 60: (.maskShift, 0x04),
+        58: (.maskAlternate, 0x20), 61: (.maskAlternate, 0x40),
+        59: (.maskControl, 0x01), 62: (.maskControl, 0x2000),
+        63: (.maskSecondaryFn, 0), 57: (.maskAlphaShift, 0),
+    ]
 }

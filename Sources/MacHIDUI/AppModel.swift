@@ -50,6 +50,8 @@ public final class AppModel {
     public var brush = MacHIDDomain.RGBColor(r: 120, g: 70, b: 255)
     /// The key or button picked on the device drawing; the Buttons and Lighting panels act on it.
     public var selectedInput: String?
+    /// The layer being edited in the Buttons panel: empty is the base layer, otherwise the shift modes held together.
+    public var selectedLayers: Set<String> = []
     /// Set by the app scene so the delegate and the menu can bring the window forward.
     @ObservationIgnored public var openMainWindow: (() -> Void)?
     /// Called after devices were plugged in or removed (the plugins page re-checks its recommendations).
@@ -168,6 +170,42 @@ public final class AppModel {
         eventTask = nil
     }
 
+    // MARK: Device order
+
+    /// The user's order of the device bar (ids); devices not in it follow alphabetically.
+    public private(set) var deviceOrder: [String] = UserDefaults.standard.stringArray(forKey: AppModel.deviceOrderKey) ?? []
+    static let deviceOrderKey = "deviceOrder"
+
+    private func sortDevices() {
+        devices.sort { lhs, rhs in
+            let l = deviceOrder.firstIndex(of: lhs.id) ?? Int.max, r = deviceOrder.firstIndex(of: rhs.id) ?? Int.max
+            return l != r ? l < r : (lhs.name, lhs.id) < (rhs.name, rhs.id)
+        }
+    }
+
+    /// Puts `id` where `target` is now (dragging a device onto another one).
+    public func moveDevice(_ id: String, onto target: String) {
+        guard id != target, devices.contains(where: { $0.id == id }), devices.contains(where: { $0.id == target }) else { return }
+        var order = devices.map(\.id)
+        order.removeAll { $0 == id }
+        order.insert(id, at: order.firstIndex(of: target) ?? order.endIndex)
+        setOrder(order)
+    }
+
+    /// Nudges a device one place left (-1) or right (+1).
+    public func shiftDevice(_ id: String, by offset: Int) {
+        var order = devices.map(\.id)
+        guard let index = order.firstIndex(of: id), order.indices.contains(index + offset) else { return }
+        order.swapAt(index, index + offset)
+        setOrder(order)
+    }
+
+    private func setOrder(_ order: [String]) {
+        deviceOrder = order
+        defaults.set(order, forKey: Self.deviceOrderKey)
+        sortDevices()
+    }
+
     /// Sections the selected device has controls for, in display order.
     public var availableSections: [ControlSection] {
         guard let device = selectedDevice else { return [] }
@@ -224,7 +262,7 @@ public final class AppModel {
             devices.append(DeviceEntry(id: id, item: item, specs: item.definition.map(ControlSpec.specs(for:)) ?? []))
             added.append(id)
         }
-        devices.sort { ($0.name, $0.id) < ($1.name, $1.id) }
+        sortDevices()
         if selectedDeviceID == nil || !devices.contains(where: { $0.id == selectedDeviceID }) {
             selectedDeviceID = devices.first?.id
         }
@@ -274,6 +312,44 @@ public final class AppModel {
                 set(.int(1), capability: spec.id, on: deviceID)
             default: break
             }
+        }
+    }
+
+    // MARK: Profiles everywhere
+
+    /// Applies a profile to every connected device that has settings in it (a remap rule asked for it).
+    public func applyProfileToAll(_ profileID: String) async {
+        for entry in devices where profiles.first(where: { $0.id == profileID })?.settings[entry.definition?.id ?? ""] != nil {
+            await applyProfile(profileID, to: entry.id)
+        }
+    }
+
+    /// Moves every device to its next (+1) or previous (-1) profile.
+    public func cycleProfiles(step: Int) async {
+        for entry in devices {
+            let available = profiles(for: entry.id)
+            guard !available.isEmpty else { continue }
+            let current = activeProfile(for: entry.id).flatMap { active in available.firstIndex { $0.id == active.id } } ?? (step > 0 ? -1 : 0)
+            let next = ((current + step) % available.count + available.count) % available.count
+            await applyProfile(available[next].id, to: entry.id)
+        }
+    }
+
+    // MARK: Streaming
+
+    @ObservationIgnored private var streamBusy: Set<String> = []
+
+    /// Sends a value now, without touching the observable state, and drops it if the previous one is still on its way.
+    /// For lighting frames streamed many times a second (debounced `set` would starve).
+    public func stream(_ value: SettingValue, capability: String, to deviceID: String) {
+        let key = deviceID + "/" + capability
+        guard !streamBusy.contains(key), let entry = devices.first(where: { $0.id == deviceID }) else { return }
+        streamBusy.insert(key)
+        Task { [weak self] in
+            do { try await self?.control.write(entry.usbId, capability: capability, value: value) } catch {
+                // A failing device is not worth a banner every frame.
+            }
+            self?.streamBusy.remove(key)
         }
     }
 
