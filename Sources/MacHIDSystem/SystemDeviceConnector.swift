@@ -16,7 +16,7 @@ public struct SystemDeviceConnector: DeviceConnector {
     ///   - pluginCode: finds the stored script and approved permissions of an installed code plugin by id.
     ///   - hostLauncher: starts the sandboxed script host.
     public init(decorate: @escaping @Sendable (any Transport) -> any Transport = { $0 },
-                pluginCode: @escaping @Sendable (String) -> (script: String, permissions: PluginPermissions)? = { _ in nil },
+                pluginCode: @escaping @Sendable (String) -> (script: String, permissions: PluginPermissions)? = { InstalledPluginCode.lookup(id: $0) },
                 hostLauncher: any PluginHostLauncher = SandboxedPluginHostLauncher()) {
         self.decorate = decorate
         self.pluginCode = pluginCode

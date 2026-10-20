@@ -121,3 +121,21 @@ final class ProcessPluginHostSession: PluginHostSession, @unchecked Sendable {
 
     deinit { terminate() }
 }
+
+/// Finds the script of an installed code plugin on disk. The script is re-checked on every load (size, UTF-8) because
+/// the folder is user data.
+public enum InstalledPluginCode {
+    public static func lookup(id: String, pluginsDirectory: URL = FileInstalledPluginStore.pluginsDirectory) -> (script: String, permissions: PluginPermissions)? {
+        guard !id.isEmpty, id.allSatisfy({ $0.isLowercase || $0.isNumber || $0 == "-" }) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let data = try? Data(contentsOf: pluginsDirectory.appendingPathComponent("installed.json")),
+              let plugins = try? decoder.decode([InstalledPlugin].self, from: data),
+              let plugin = plugins.first(where: { $0.id == id && $0.hasCode }),
+              PluginManifest.isSafeRelativePath(plugin.ref) else { return nil }
+        let url = pluginsDirectory.appendingPathComponent(id).appendingPathComponent(plugin.ref).appendingPathComponent(PluginInstaller.storedScriptName)
+        guard let script = try? Data(contentsOf: url), script.count <= PluginInstaller.maxScriptBytes, !script.contains(0),
+              let text = String(data: script, encoding: .utf8) else { return nil }
+        return (text, plugin.permissions)
+    }
+}

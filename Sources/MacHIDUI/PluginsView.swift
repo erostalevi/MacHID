@@ -153,6 +153,9 @@ private struct EntryRow: View {
             } else {
                 Button("Install…") { showingDetails = true }.buttonStyle(PillButtonStyle())
                     .popover(isPresented: $showingDetails, arrowEdge: .bottom) { InstallDetails(plugins: plugins, entry: entry) { showingDetails = false } }
+                    .popover(isPresented: Binding(get: { plugins.pendingCode[entry.id] != nil }, set: { if !$0 { plugins.cancelCode(entry.id) } }), arrowEdge: .bottom) {
+                        CodeConfirmation(plugins: plugins, entry: entry)
+                    }
             }
         }
     }
@@ -186,6 +189,34 @@ private struct InstallDetails: View {
                     done()
                 }
                 .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18).frame(width: 380)
+    }
+}
+
+/// Shown when a plugin turns out to carry code: a strong warning and an explicit checkbox before it is installed.
+private struct CodeConfirmation: View {
+    @Bindable var plugins: PluginsModel
+    let entry: RegistryEntry
+    @State private var understood = false
+
+    var body: some View {
+        let info = plugins.pendingCode[entry.id]
+        VStack(alignment: .leading, spacing: 12) {
+            Label("This plugin runs code", systemImage: "exclamationmark.octagon.fill").font(.headline).foregroundStyle(.red)
+            Text("It runs code in a sandbox and can send commands to your device. It cannot read your keyboard, files or network, and it never updates by itself.")
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
+            if entry.review == .community, let info {
+                LabeledContent("Script size") { Text(verbatim: "\(info.bytes) bytes") }
+                LabeledContent("SHA-256") { Text(verbatim: info.sha256).font(.system(.caption2, design: .monospaced)).textSelection(.enabled) }
+                Text("Community plugin: nobody reviewed this code.").font(.callout).foregroundStyle(.orange)
+            }
+            Toggle("I understand and trust the author", isOn: $understood)
+            HStack {
+                Spacer()
+                Button("Install") { Task { await plugins.install(entry, allowCode: true) } }
+                    .disabled(!understood).keyboardShortcut(.defaultAction)
             }
         }
         .padding(18).frame(width: 380)

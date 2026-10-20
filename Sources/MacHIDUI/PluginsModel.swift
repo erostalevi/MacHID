@@ -18,6 +18,8 @@ public final class PluginsModel {
     public private(set) var status: Status = .idle
     public private(set) var lastChecked: Date?
     public private(set) var busy: Set<String> = []
+    /// Code plugins waiting for the user's explicit confirmation: plugin id to (script bytes, SHA-256).
+    public private(set) var pendingCode: [String: (bytes: Int, sha256: String)] = [:]
     /// False when this build has no registry signing key: discovery is then off rather than untrusted.
     public let discoveryAvailable: Bool
     public var banner: String?
@@ -103,17 +105,22 @@ public final class PluginsModel {
 
     // MARK: Changing
 
-    public func install(_ entry: RegistryEntry) async {
+    public func cancelCode(_ id: String) { pendingCode[id] = nil }
+
+    public func install(_ entry: RegistryEntry, allowCode: Bool = false) async {
         guard !busy.contains(entry.id) else { return }
         busy.insert(entry.id)
         defer { busy.remove(entry.id) }
         do {
-            let plugin = try await installer.install(entry)
+            let plugin = try await installer.install(entry, allowCode: allowCode)
+            pendingCode[entry.id] = nil
             installed.removeAll { $0.id == plugin.id }
             installed.append(plugin)
             try await store.save(installed)
             await publishDefinitions()
             await recompute()
+        } catch PluginError.codeNeedsConfirmation(let bytes, let sha256) {
+            pendingCode[entry.id] = (bytes, sha256)
         } catch {
             banner = "Could not install \(entry.id): \(error)"
         }
@@ -138,14 +145,15 @@ public final class PluginsModel {
                 if let reason = PluginPlanner.downgradeBlocker(installed: update.installed, newManifest: manifest) { return reason }
                 return approved ? nil : PluginPlanner.autoUpdateBlocker(for: update, newManifest: manifest)
             }
-            let plugin = try await installer.install(update.entry, approve: gate)
+            let plugin = try await installer.install(update.entry, allowCode: approved, approve: gate)
             installed.removeAll { $0.id == plugin.id }
             installed.append(plugin)
             try await store.save(installed)
             await publishDefinitions()
             await recompute()
         } catch let error as PluginError {
-            if case .notApproved = error { return }     // stays in the list for the user to review
+            if case .notApproved = error { return }
+            if case .codeNeedsConfirmation = error { return }     // stays in the list for the user to review
             banner = "Could not update \(update.entry.id): \(error)"
         } catch {
             banner = "Could not update \(update.entry.id): \(error)"

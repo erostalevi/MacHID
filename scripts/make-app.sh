@@ -22,6 +22,9 @@ BIN="$(swift build -c "$CONFIG" --scratch-path "$BUILD_DIR" --package-path "$ROO
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/MacHID"
+# Sandboxed script host for code plugins; the app looks for it next to its own executable.
+swift build -c "$CONFIG" --scratch-path "$BUILD_DIR" --product MacHIDPluginHost --package-path "$ROOT"
+cp "$(dirname "$BIN")/MacHIDPluginHost" "$APP/Contents/MacOS/MacHIDPluginHost"
 
 # Sparkle (auto-update) is a dynamic framework: it travels inside the app.
 SPARKLE="$(find "$BUILD_DIR/artifacts" -type d -name Sparkle.framework -path "*macos*" | head -1)"

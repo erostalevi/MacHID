@@ -141,3 +141,24 @@ private func scripted(_ hid: String, permissions: PluginPermissions) -> (PluginD
         #expect(transport.calls.isEmpty)
     }
 }
+
+@Suite struct CodePluginUpdateTests {
+    @Test func codePluginsNeverAutoUpdateEvenWhenReviewed() {
+        let usb = USBID(vendor: 0x1234, product: 1)
+        let perms = permissions()
+        let installed = InstalledPlugin(id: "acme", name: "A", version: "1.0.0", ref: String(repeating: "a", count: 40), review: .reviewed, license: "MIT",
+                                        devices: [usb], permissions: perms, definitionFiles: [], installedAt: Date(), hasCode: true)
+        let entry = RegistryEntry(id: "acme", repo: "https://github.com/a/b", ref: String(repeating: "b", count: 40), manifestSha256: "", license: "MIT",
+                                  category: .mouse, devices: [usb], coreApi: APIRange(min: 1, max: 1), review: .reviewed)
+        let manifest = PluginManifest(id: "acme", name: "A", version: "1.1.0", license: "MIT", author: "a", coreAPI: APIRange(min: 1, max: 1), devices: [usb],
+                                      driver: "driver.js", permissions: perms, definitions: nil)
+        #expect(PluginPlanner.autoUpdateBlocker(for: PluginUpdate(installed: installed, entry: entry), newManifest: manifest) != nil)
+    }
+
+    @Test func oldInstalledListsStillDecode() throws {
+        let json = #"[{"id":"a","name":"A","version":"1.0.0","ref":"r","review":"reviewed","license":"MIT","devices":["1234:0001"],"permissions":{"transport":"hid","writes":"none"},"definitionFiles":[],"installedAt":"2026-01-01T00:00:00Z"}]"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        #expect(try decoder.decode([InstalledPlugin].self, from: Data(json.utf8)).first?.hasCode == false)
+    }
+}

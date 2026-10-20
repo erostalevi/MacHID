@@ -71,6 +71,8 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
     case registryMismatch(String)
     case codePluginsNotSupported
     case invalidScript(String)
+    /// The plugin runs code and the caller did not say the user confirmed that (size in bytes, SHA-256 of the script).
+    case codeNeedsConfirmation(bytes: Int, sha256: String)
     case invalidDefinition(file: String, reason: String)
     case unknownDriver(String)
     case tooLarge(String)
@@ -86,6 +88,7 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
         case .invalidManifest(let issues): "invalid manifest: \(issues.joined(separator: "; "))"
         case .registryMismatch(let what): "the plugin disagrees with its registry entry: \(what)"
         case .codePluginsNotSupported: "plugins with code drivers need a newer MacHID"
+        case .codeNeedsConfirmation: "this plugin runs code and needs your explicit confirmation"
         case .invalidScript(let why): "invalid plugin script: \(why)"
         case .invalidDefinition(let file, let reason): "invalid definition \(file): \(reason)"
         case .unknownDriver(let name): "unknown driver family '\(name)'"
@@ -126,9 +129,10 @@ public actor PluginInstaller {
         self.now = now
     }
 
+    /// - Parameter allowCode: set only after the user explicitly confirmed that the plugin runs code.
     /// - Parameter approve: asked once the plugin has been fully checked and before anything is stored; return a
     ///   reason to refuse. Automatic updates use it to insist that permissions and license did not change.
-    public func install(_ entry: RegistryEntry, approve: (@Sendable (PluginManifest) -> String?)? = nil) async throws -> InstalledPlugin {
+    public func install(_ entry: RegistryEntry, allowCode: Bool = false, approve: (@Sendable (PluginManifest) -> String?)? = nil) async throws -> InstalledPlugin {
         let archive: URL
         do { archive = try await fetcher.fetchArchive(repo: entry.repo, ref: entry.ref) }
         catch { throw PluginError.download("\(error)") }
@@ -142,6 +146,7 @@ public actor PluginInstaller {
         let manifest = try loadManifest(in: root, entry: entry)
         let definitions = try loadDefinitions(in: root, manifest: manifest)
         let script = try loadScript(in: root, manifest: manifest)
+        if let script, !allowCode { throw PluginError.codeNeedsConfirmation(bytes: script.count, sha256: sha256(script)) }
         if let reason = approve?(manifest) { throw PluginError.notApproved(reason) }
 
         let destination = directory.appendingPathComponent(entry.id, isDirectory: true).appendingPathComponent(entry.ref, isDirectory: true)

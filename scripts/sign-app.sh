@@ -14,5 +14,6 @@ SP="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
 for item in "$SP"/XPCServices/*.xpc "$SP/Autoupdate" "$SP/Updater.app" "$APP/Contents/Frameworks/Sparkle.framework"; do
   [ -e "$item" ] && sign "$item"
 done
+[ -e "$APP/Contents/MacOS/MacHIDPluginHost" ] && sign "$APP/Contents/MacOS/MacHIDPluginHost"
 sign "$APP"
 codesign --verify --strict --deep "$APP"

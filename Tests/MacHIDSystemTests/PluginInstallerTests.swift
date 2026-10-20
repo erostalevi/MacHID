@@ -113,7 +113,7 @@ private func installer(_ archive: URL, directory: URL = temp()) -> PluginInstall
         fixture.extraFiles["driver.js"] = "function read(c) { return 1 }"
         let (archive, hash) = try fixture.pack()
         let installerDirectory = temp()
-        let plugin = try await installer(archive, directory: installerDirectory).install(entry(hash: hash))
+        let plugin = try await installer(archive, directory: installerDirectory).install(entry(hash: hash), allowCode: true)
         #expect(plugin.hasCode)
         #expect(fm.fileExists(atPath: installerDirectory.appendingPathComponent("acme-mouse/\(entry(hash: hash).ref)/driver.js").path))
     }
