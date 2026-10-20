@@ -86,5 +86,6 @@
       "type": "camera_control",
       "access": "write_volatile"
     }
-  ]
+  ],
+  "artwork": "artwork/brio-100.svg"
 }

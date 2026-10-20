@@ -135,6 +135,10 @@
       "additionalProperties": {
         "type": "string"
       }
+    },
+    "artwork": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+(/[A-Za-z0-9_.-]+)*\\.svg$"
     }
   }
 }

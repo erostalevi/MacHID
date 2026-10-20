@@ -261,3 +261,70 @@ import Testing
         #expect(SemanticVersion("1.0") == nil && SemanticVersion("a.b.c") == nil && SemanticVersion("1.0.0.0") == nil && SemanticVersion("-1.0.0") == nil)
     }
 }
+
+@Suite struct ArtworkTests {
+    private func svg(_ body: String, root: String = #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">"#) -> Data {
+        Data((root + body + "</svg>").utf8)
+    }
+
+    @Test func plainVectorDrawingsAreAccepted() {
+        let good = svg(##"<defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient></defs><rect x="1" y="1" width="9" height="9" fill="url(#g)" style="stroke:#333"/><path d="M0 0L5 5"/>"##)
+        #expect(SVGSafety.validate(good).isEmpty)
+    }
+
+    @Test(arguments: [
+        #"<script>alert(1)</script>"#,
+        #"<rect onclick="x()" width="1" height="1"/>"#,
+        #"<image href="https://evil.example/a.png" width="1" height="1"/>"#,
+        #"<a href="https://evil.example"><rect width="1" height="1"/></a>"#,
+        #"<foreignObject><div/></foreignObject>"#,
+        #"<rect width="1" height="1" fill="url(https://evil.example/x)"/>"#,
+        #"<rect width="1" height="1" style="background:url(data:image/png;base64,AAAA)"/>"#,
+        #"<use href="https://evil.example/x.svg#a"/>"#,
+        #"<style>@import url(https://evil.example/a.css)</style>"#,
+    ])
+    func dangerousContentIsRejected(body: String) {
+        #expect(!SVGSafety.validate(svg(body)).isEmpty)
+    }
+
+    @Test func entitiesDoctypesAndNonSVGRootsAreRejected() {
+        #expect(!SVGSafety.validate(Data(#"<!DOCTYPE svg [<!ENTITY a "x">]><svg xmlns="http://www.w3.org/2000/svg"/>"#.utf8)).isEmpty)
+        #expect(!SVGSafety.validate(Data("<html></html>".utf8)).isEmpty)
+        #expect(!SVGSafety.validate(Data("<svg".utf8)).isEmpty)
+        #expect(!SVGSafety.validate(Data([0xFF, 0xFE, 0x00])).isEmpty)
+        #expect(!SVGSafety.validate(Data(repeating: 0x20, count: SVGSafety.maxBytes + 1)).isEmpty)
+    }
+
+    @Test func hotspotsAreReadFromNamedShapes() throws {
+        let layout = try #require(ArtworkLayout.parse(svg(#"""
+            <rect id="hotspot-backlight" x="10" y="20" width="30" height="40" rx="6"/>
+            <circle id="hotspot-dpi" cx="100" cy="50" r="10"/>
+            <ellipse id="hotspot-brightness" cx="150" cy="50" rx="20" ry="10"/>
+            <rect id="body" x="0" y="0" width="200" height="100"/>
+            <rect id="hotspot-" x="0" y="0" width="1" height="1"/>
+            """#)))
+        #expect(layout.viewBox == ArtworkRect(x: 0, y: 0, width: 200, height: 100))
+        #expect(layout.hotspots.map(\.capabilityID) == ["backlight", "dpi", "brightness"])
+        #expect(layout.hotspots[0].frame == ArtworkRect(x: 10, y: 20, width: 30, height: 40) && layout.hotspots[0].shape == .rect(cornerRadius: 6))
+        #expect(layout.hotspots[1].frame == ArtworkRect(x: 90, y: 40, width: 20, height: 20) && layout.hotspots[1].shape == .ellipse)
+    }
+
+    @Test func hotspotsInsideTransformsAreIgnored() throws {
+        let layout = try #require(ArtworkLayout.parse(svg(#"<g transform="translate(50 0)"><rect id="hotspot-dpi" x="0" y="0" width="5" height="5"/></g><rect id="hotspot-ok" x="1" y="1" width="2" height="2"/>"#)))
+        #expect(layout.hotspots.map(\.capabilityID) == ["ok"])
+    }
+
+    @Test func aViewBoxIsRequiredOrDerivedFromSize() {
+        #expect(ArtworkLayout.parse(Data(#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#.utf8)) == nil)
+        #expect(ArtworkLayout.parse(Data(#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"></svg>"#.utf8))?.viewBox == ArtworkRect(x: 0, y: 0, width: 40, height: 20))
+    }
+
+    @Test func definitionArtworkPathsAreChecked() {
+        let ok = DeviceDefinition(id: "d", name: "D", category: .mouse, usbIds: [USBID(vendor: 1, product: 1)], driver: "razer", capabilities: [], artwork: "artwork/d.svg")
+        #expect((try? ok.validate()) != nil)
+        for bad in ["../d.svg", "/etc/d.svg", "artwork/d.png", "artwork/.hidden.svg"] {
+            let definition = DeviceDefinition(id: "d", name: "D", category: .mouse, usbIds: [USBID(vendor: 1, product: 1)], driver: "razer", capabilities: [], artwork: bad)
+            #expect(throws: DefinitionError.self) { try definition.validate() }
+        }
+    }
+}

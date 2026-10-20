@@ -14,15 +14,18 @@ public struct DeviceDefinition: Sendable, Codable, Equatable {
     /// Per-model parameters for the driver family (for example a protocol transaction id). Plain text values:
     /// a definition is data and never carries code.
     public let driverOptions: [String: String]?
+    /// Relative path of an SVG drawing of the device, with `hotspot-<capability>` shapes (see `ArtworkLayout`).
+    public let artwork: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, category, driver, capabilities
+        case id, name, category, driver, capabilities, artwork
         case usbIds = "usb_ids"
         case driverOptions = "driver_options"
     }
 
     public init(id: String, name: String, category: DeviceCategory, usbIds: [USBID],
-                driver: String, capabilities: [CapabilityDescriptor], driverOptions: [String: String]? = nil) {
+                driver: String, capabilities: [CapabilityDescriptor], driverOptions: [String: String]? = nil, artwork: String? = nil) {
+        self.artwork = artwork
         self.driverOptions = driverOptions
         self.id = id
         self.name = name
@@ -38,6 +41,7 @@ public enum DefinitionError: Error, Equatable, CustomStringConvertible {
     case noUSBIDs
     case duplicateCapability(String)
     case invalidRange(capability: String)
+    case invalidArtwork(String)
 
     public var description: String {
         switch self {
@@ -45,6 +49,7 @@ public enum DefinitionError: Error, Equatable, CustomStringConvertible {
         case .noUSBIDs: "A definition needs at least one USB ID"
         case .duplicateCapability(let id): "Duplicate capability id '\(id)'"
         case .invalidRange(let id): "Capability '\(id)' has an invalid range"
+        case .invalidArtwork(let path): "Artwork path '\(path)' must be a relative .svg path inside the plugin"
         }
     }
 }
@@ -52,6 +57,7 @@ public enum DefinitionError: Error, Equatable, CustomStringConvertible {
 extension DeviceDefinition {
     public func validate() throws {
         guard Identifier.isValid(id) else { throw DefinitionError.invalidID(id) }
+        if let artwork, !(PluginManifest.isSafeRelativePath(artwork) && artwork.hasSuffix(".svg")) { throw DefinitionError.invalidArtwork(artwork) }
         guard !usbIds.isEmpty else { throw DefinitionError.noUSBIDs }
         var seen = Set<String>()
         for capability in capabilities {

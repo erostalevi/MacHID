@@ -56,5 +56,6 @@
   ],
   "driver_options": {
     "lighting_transaction_id": "0x3F"
-  }
+  },
+  "artwork": "artwork/huntsman-mini.svg"
 }

@@ -91,7 +91,7 @@ extension PluginManifest {
     }
 
     /// No absolute paths, parent references, hidden path parts or backslashes.
-    static func isSafeRelativePath(_ path: String) -> Bool {
+    public static func isSafeRelativePath(_ path: String) -> Bool {
         guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\"), !path.contains("\0") else { return false }
         return path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy { part in
             !part.isEmpty && part != "." && part != ".." && !part.hasPrefix(".")

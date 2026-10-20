@@ -38,7 +38,8 @@ public final class AppModel {
 
     @ObservationIgnored private var inventory: DeviceInventory
     @ObservationIgnored private var control: DeviceControl
-    @ObservationIgnored private let baseDefinitions: [DeviceDefinition]
+    @ObservationIgnored private let baseCatalog: DefinitionCatalog
+    @ObservationIgnored private var pluginRoots: [String: URL] = [:]
     @ObservationIgnored private let enumerator: any DeviceEnumerator
     @ObservationIgnored private let connector: any DeviceConnector
     @ObservationIgnored private let repository: any ProfileRepository
@@ -62,7 +63,7 @@ public final class AppModel {
         self.deviceChanges = deviceChanges
         self.inventory = inventory
         self.control = control
-        self.baseDefinitions = inventory.catalog.definitions
+        self.baseCatalog = inventory.catalog
         self.enumerator = enumerator ?? inventory.enumerator
         self.connector = connector ?? control.connector
         self.repository = repository
@@ -272,12 +273,26 @@ public final class AppModel {
         setActive(profile.id, definitionID: definition.id)
     }
 
+    // MARK: Artwork
+
+    @ObservationIgnored private var artworkCache: [String: LoadedArtwork?] = [:]
+
+    func artwork(for entry: DeviceEntry) -> LoadedArtwork? {
+        guard let definition = entry.definition else { return nil }
+        if let cached = artworkCache[definition.id] { return cached }
+        let loaded = inventory.catalog.artworkRoots[definition.id].flatMap { ArtworkLoader.load(for: definition, root: $0) }
+        artworkCache[definition.id] = .some(loaded)
+        return loaded
+    }
+
     // MARK: Plugins
 
     /// Adds the definitions of installed plugins to the built-in ones and starts using them. Built-in definitions
     /// win when a plugin claims the same USB ID.
-    public func setPluginDefinitions(_ definitions: [DeviceDefinition]) async {
-        let catalog = DefinitionCatalog(definitions: baseDefinitions + definitions)
+    public func setPluginDefinitions(_ definitions: [DeviceDefinition], artworkRoots: [String: URL] = [:]) async {
+        pluginRoots = artworkRoots
+        artworkCache.removeAll()
+        let catalog = baseCatalog.adding(definitions, artworkRoots: pluginArtworkRoots(definitions))
         inventory = DeviceInventory(enumerator: enumerator, catalog: catalog)
         control = DeviceControl(inventory: inventory, connector: connector)
         // A device whose definition changed gets its controls rebuilt; the rest are left alone.
@@ -287,6 +302,8 @@ public final class AppModel {
         devices.removeAll { entry in changed.contains { $0.id == entry.id } }
         await refreshDevices()
     }
+
+    private func pluginArtworkRoots(_ definitions: [DeviceDefinition]) -> [String: URL] { pluginRoots }
 
     /// Attached devices that no definition covers: what plugin recommendations are about.
     public func unsupportedDeviceIDs() async -> [USBID] {

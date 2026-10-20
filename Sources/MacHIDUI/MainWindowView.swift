@@ -19,7 +19,13 @@ public struct MainWindowView: View {
                 VStack(spacing: 20) {
                     topBar(device)
                     Spacer(minLength: 0)
-                    DeviceArt(category: device.definition?.category ?? .other, accent: accent(for: device))
+                    DeviceArt(category: device.definition?.category ?? .other, accent: accent(for: device),
+                              artwork: model.artwork(for: device),
+                              interactive: Set(device.specs.map(\.id))) { capability in
+                        if let spec = device.specs.first(where: { $0.id == capability }) {
+                            withAnimation(Motion(reduce: reduceMotion).snappy) { section = spec.section }
+                        }
+                    }
                         .id(device.id)
                         .transition(.blurReplace)
                     sectionChips(device)

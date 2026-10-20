@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260">
+  <title>Logitech G203 LIGHTSYNC</title>
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8e8e93" stop-opacity="0.28"/><stop offset="1" stop-color="#8e8e93" stop-opacity="0.10"/></linearGradient>
+  </defs>
+  <path d="M200 20 C262 20 292 70 292 128 C292 196 262 240 200 240 C138 240 108 196 108 128 C108 70 138 20 200 20 Z" fill="url(#shell)" stroke="#8e8e93" stroke-opacity="0.65" stroke-width="2"/>
+  <path d="M200 24 L200 112" fill="none" stroke="#8e8e93" stroke-opacity="0.55" stroke-width="2"/>
+  <path d="M112 112 C140 120 170 122 200 122 C230 122 260 120 288 112" fill="none" stroke="#8e8e93" stroke-opacity="0.45" stroke-width="2"/>
+  <rect x="190" y="52" width="20" height="48" rx="10" fill="#8e8e93" fill-opacity="0.35" stroke="#8e8e93" stroke-opacity="0.7" stroke-width="2"/>
+  <rect x="176" y="136" width="48" height="16" rx="8" fill="#8e8e93" fill-opacity="0.22" stroke="#8e8e93" stroke-opacity="0.5" stroke-width="1.5"/>
+  <ellipse cx="200" cy="190" rx="34" ry="24" fill="#8e8e93" fill-opacity="0.12" stroke="#8e8e93" stroke-opacity="0.5" stroke-width="1.5"/>
+  <rect id="hotspot-dpi" x="172" y="130" width="56" height="28" rx="14"/>
+  <ellipse id="hotspot-backlight" cx="200" cy="190" rx="40" ry="30"/>
+</svg>

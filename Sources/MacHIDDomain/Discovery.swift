@@ -55,9 +55,12 @@ public protocol DeviceEnumerator: Sendable {
 public struct DefinitionCatalog: Sendable {
     private let byUSBID: [USBID: DeviceDefinition]
     public let definitions: [DeviceDefinition]
+    /// Definition id -> folder its relative `artwork` path is resolved against.
+    public let artworkRoots: [String: URL]
 
-    public init(definitions: [DeviceDefinition]) {
+    public init(definitions: [DeviceDefinition], artworkRoots: [String: URL] = [:]) {
         self.definitions = definitions
+        self.artworkRoots = artworkRoots
         var index: [USBID: DeviceDefinition] = [:]
         for definition in definitions {
             for id in definition.usbIds where index[id] == nil { index[id] = definition }
@@ -66,6 +69,11 @@ public struct DefinitionCatalog: Sendable {
     }
 
     public func definition(for id: USBID) -> DeviceDefinition? { byUSBID[id] }
+
+    /// The catalog plus more definitions (from plugins). Earlier definitions win on duplicate ids and USB IDs.
+    public func adding(_ more: [DeviceDefinition], artworkRoots extra: [String: URL]) -> DefinitionCatalog {
+        DefinitionCatalog(definitions: definitions + more, artworkRoots: artworkRoots.merging(extra) { current, _ in current })
+    }
 
     /// Loads every `*.json` definition in a directory. Invalid files are reported, not skipped silently.
     public static func load(directory: URL) throws -> (catalog: DefinitionCatalog, errors: [String]) {
@@ -83,6 +91,6 @@ public struct DefinitionCatalog: Sendable {
                 errors.append("\(file.lastPathComponent): \(error)")
             }
         }
-        return (DefinitionCatalog(definitions: loaded), errors)
+        return (DefinitionCatalog(definitions: loaded, artworkRoots: Dictionary(loaded.map { ($0.id, directory) }, uniquingKeysWith: { first, _ in first })), errors)
     }
 }
