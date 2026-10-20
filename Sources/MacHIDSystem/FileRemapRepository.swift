@@ -8,8 +8,12 @@ public actor FileRemapRepository: RemapRepository {
 
     public init(url: URL = FileRemapRepository.defaultURL) { self.url = url }
 
+    /// `~/Library/Application Support/MacHID`, or the folder named by `MACHID_SUPPORT_DIR` (tests and tooling).
     public static var supportDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MacHID", isDirectory: true)
+        if let override = ProcessInfo.processInfo.environment["MACHID_SUPPORT_DIR"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MacHID", isDirectory: true)
     }
 
     public static var defaultURL: URL { supportDirectory.appendingPathComponent("remap.json") }

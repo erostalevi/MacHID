@@ -9,8 +9,7 @@ public actor FileProfileRepository: ProfileRepository {
     public init(url: URL = FileProfileRepository.defaultURL) { self.url = url }
 
     public static var defaultURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MacHID", isDirectory: true).appendingPathComponent("profiles.json")
+        FileRemapRepository.supportDirectory.appendingPathComponent("profiles.json")
     }
 
     public func load() throws -> [Profile] {
