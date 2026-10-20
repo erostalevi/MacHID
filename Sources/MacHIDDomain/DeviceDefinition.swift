@@ -11,14 +11,19 @@ public struct DeviceDefinition: Sendable, Codable, Equatable {
     /// Protocol-family driver that handles this device (e.g. `razer`, `logitech-gseries`, `uvc`).
     public let driver: String
     public let capabilities: [CapabilityDescriptor]
+    /// Per-model parameters for the driver family (for example a protocol transaction id). Plain text values:
+    /// a definition is data and never carries code.
+    public let driverOptions: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, category, driver, capabilities
         case usbIds = "usb_ids"
+        case driverOptions = "driver_options"
     }
 
     public init(id: String, name: String, category: DeviceCategory, usbIds: [USBID],
-                driver: String, capabilities: [CapabilityDescriptor]) {
+                driver: String, capabilities: [CapabilityDescriptor], driverOptions: [String: String]? = nil) {
+        self.driverOptions = driverOptions
         self.id = id
         self.name = name
         self.category = category

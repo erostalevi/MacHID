@@ -53,5 +53,8 @@
         ]
       }
     }
-  ]
+  ],
+  "driver_options": {
+    "lighting_transaction_id": "0x3F"
+  }
 }

@@ -12,6 +12,21 @@ public struct RazerModel: Sendable, Equatable {
     ]
 
     public static func model(for id: USBID) -> RazerModel? { known.first { $0.usbId == id } }
+
+    /// The model for a device: parameters from its definition when it gives them (so new models can be added as
+    /// data), otherwise the built-in table.
+    public static func model(for id: USBID, options: [String: String]?) -> RazerModel? {
+        if let text = options?["lighting_transaction_id"], let value = parseByte(text) {
+            return RazerModel(usbId: id, lightingTransactionID: value)
+        }
+        return model(for: id)
+    }
+
+    /// Accepts "0x3F" or "63".
+    static func parseByte(_ text: String) -> UInt8? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).lowercased()
+        return trimmed.hasPrefix("0x") ? UInt8(trimmed.dropFirst(2), radix: 16) : UInt8(trimmed)
+    }
 }
 
 /// Razer family driver (M2 scope: firmware, backlight brightness, static color / off).

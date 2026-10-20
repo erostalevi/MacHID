@@ -11,6 +11,11 @@ public struct APIRange: Sendable, Codable, Equatable {
     public let min: Int
     public let max: Int
 
+    public init(min: Int, max: Int) {
+        self.min = min
+        self.max = max
+    }
+
     public func contains(_ version: Int) -> Bool { version >= min && version <= max }
 }
 
@@ -31,6 +36,19 @@ public struct RegistryEntry: Sendable, Codable, Equatable {
         case manifestSha256 = "manifest_sha256"
         case coreApi = "core_api"
     }
+
+    public init(id: String, repo: String, ref: String, manifestSha256: String, license: String, category: DeviceCategory,
+                devices: [USBID], coreApi: APIRange, review: ReviewLevel) {
+        self.id = id
+        self.repo = repo
+        self.ref = ref
+        self.manifestSha256 = manifestSha256
+        self.license = license
+        self.category = category
+        self.devices = devices
+        self.coreApi = coreApi
+        self.review = review
+    }
 }
 
 /// The `plugins.json` index.
@@ -39,6 +57,11 @@ public struct Registry: Sendable, Codable, Equatable {
 
     public let schemaVersion: Int
     public let plugins: [RegistryEntry]
+
+    public init(schemaVersion: Int = Registry.supportedSchemaVersion, plugins: [RegistryEntry]) {
+        self.schemaVersion = schemaVersion
+        self.plugins = plugins
+    }
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -95,7 +118,7 @@ public struct RegistryValidator: Sendable {
         }
     }
 
-    static func isAllowedRepo(_ value: String) -> Bool {
+    public static func isAllowedRepo(_ value: String) -> Bool {
         guard let url = URL(string: value), url.scheme == "https",
               let host = url.host?.lowercased(), allowedHosts.contains(host),
               url.user == nil, url.query == nil, url.fragment == nil,

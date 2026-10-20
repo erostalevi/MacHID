@@ -206,3 +206,58 @@ import Testing
         #expect(try JSONDecoder().decode(AutomationConfig.self, from: data) == config)
     }
 }
+
+@Suite struct PluginManifestTests {
+    private func manifest(id: String = "acme-mouse", version: String = "1.0.0", license: String = "MIT", core: APIRange = APIRange(min: 1, max: 1),
+                          devices: [USBID]? = nil, driver: String? = nil, writes: PluginPermissions.Writes = .volatile,
+                          definitions: [String]? = nil, author: String = "Acme") -> PluginManifest {
+        PluginManifest(id: id, name: "Acme Mouse", version: version, license: license, author: author, coreAPI: core,
+                       devices: devices ?? [USBID(vendor: 0x1234, product: 0x0001)], driver: driver,
+                       permissions: PluginPermissions(transport: .hid, writes: writes), definitions: definitions)
+    }
+
+    @Test func aGoodManifestHasNoIssues() {
+        #expect(manifest().validate().isEmpty)
+        #expect(manifest().isDataOnly)
+        #expect(!manifest(driver: "driver.js").isDataOnly)
+    }
+
+    @Test func eachRuleCatchesItsProblem() {
+        #expect(!manifest(id: "Bad_ID").validate().isEmpty)
+        #expect(!manifest(version: "1.0").validate().isEmpty)
+        #expect(!manifest(version: "1.0.x").validate().isEmpty)
+        #expect(!manifest(license: "Proprietary").validate().isEmpty)
+        #expect(!manifest(author: "  ").validate().isEmpty)
+        #expect(!manifest(devices: []).validate().isEmpty)
+        #expect(!manifest(core: APIRange(min: 2, max: 3)).validate().isEmpty)          // newer than this core
+        #expect(!manifest(core: APIRange(min: 3, max: 2)).validate().isEmpty)
+        #expect(!manifest(writes: .persistent).validate().isEmpty)
+    }
+
+    @Test(arguments: ["/etc/passwd.json", "../x.json", "a/../../x.json", "devices/.hidden.json", "devices//x.json", "x.txt", "a\\b.json", ""])
+    func unsafeDefinitionPathsAreRejected(path: String) {
+        #expect(!manifest(definitions: [path]).validate().isEmpty)
+    }
+
+    @Test func safeDefinitionPathsPass() {
+        #expect(manifest(definitions: ["devices/mouse.json", "a/b/c.json"]).validate().isEmpty)
+    }
+
+    @Test func decodesTheDocumentedJSON() throws {
+        let json = Data(#"""
+        {"id":"acme-mouse","name":"Acme Mouse","version":"2.1.0","license":"GPL-3.0-or-later","author":"A",
+         "core_api":{"min":1,"max":1},"devices":["1234:0001"],
+         "permissions":{"transport":"hid","report_ids":[17],"writes":"volatile"}}
+        """#.utf8)
+        let decoded = try JSONDecoder().decode(PluginManifest.self, from: json)
+        #expect(decoded.permissions.reportIDs == [17] && decoded.devices == [USBID(vendor: 0x1234, product: 1)])
+        #expect(decoded.validate().isEmpty)
+    }
+
+    @Test func versionsCompareNumerically() {
+        #expect(SemanticVersion("1.10.0")! > SemanticVersion("1.9.9")!)
+        #expect(SemanticVersion("2.0.0")! > SemanticVersion("1.99.99")!)
+        #expect(SemanticVersion("1.0.0") == SemanticVersion("1.0.0"))
+        #expect(SemanticVersion("1.0") == nil && SemanticVersion("a.b.c") == nil && SemanticVersion("1.0.0.0") == nil && SemanticVersion("-1.0.0") == nil)
+    }
+}

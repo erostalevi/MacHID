@@ -218,4 +218,18 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
         await #expect(throws: DriverError.self) { try await driver().write(.effect(LightingEffect("fireworks")), to: backlight, using: transport) }
         #expect(await transport.sent.filter { $0.commandClass == 0x0F }.isEmpty)
     }
+
+    @Test func newModelsCanBeDescribedAsData() {
+        let id = USBID(vendor: 0x1532, product: 0x9999)
+        #expect(RazerModel.model(for: id) == nil)
+        #expect(RazerModel.model(for: id, options: ["lighting_transaction_id": "0x1F"])?.lightingTransactionID == 0x1F)
+        #expect(RazerModel.model(for: id, options: ["lighting_transaction_id": "63"])?.lightingTransactionID == 63)
+        #expect(RazerModel.model(for: id, options: ["lighting_transaction_id": "junk"]) == nil)
+        #expect(RazerModel.model(for: id, options: nil) == nil)
+        // Built-in models keep working with no options, and options win over the table when both exist.
+        let mini = USBID(vendor: 0x1532, product: 0x0257)
+        #expect(RazerModel.model(for: mini, options: nil)?.lightingTransactionID == 0x3F)
+        #expect(RazerModel.model(for: mini, options: ["lighting_transaction_id": "0x1F"])?.lightingTransactionID == 0x1F)
+        #expect(RazerModel.parseByte("0x100") == nil && RazerModel.parseByte("-1") == nil)
+    }
 }

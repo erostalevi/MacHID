@@ -19,7 +19,7 @@ public struct SystemDeviceConnector: DeviceConnector {
     public func connect(to device: DiscoveredDevice, definition: DeviceDefinition) async throws -> (driver: any DeviceDriver, transport: any Transport) {
         switch definition.driver {
         case "razer":
-            guard let model = RazerModel.model(for: device.usbId) else { throw DriverError.unsupportedModel(device.usbId) }
+            guard let model = RazerModel.model(for: device.usbId, options: definition.driverOptions) else { throw DriverError.unsupportedModel(device.usbId) }
             let transport = try IOKitHIDTransport(usbId: device.usbId, maxFeatureReportSize: RazerReport.size)
             return (RazerDriver(model: model), wrap(transport))
         case "logitech-gseries":
