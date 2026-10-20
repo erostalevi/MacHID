@@ -40,6 +40,10 @@ public struct MacrosView: View {
                         Text("\(macro.steps.count) steps").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    Button { remap.toggleFavorite(macro.id) } label: { Image(systemName: remap.isFavorite(macro.id) ? "star.fill" : "star") }
+                        .buttonStyle(.plain).foregroundStyle(remap.isFavorite(macro.id) ? Color.yellow : Color.secondary)
+                        .help(remap.isFavorite(macro.id) ? "Remove from the menu bar" : "Show in the menu bar")
+                        .accessibilityLabel(Text(remap.isFavorite(macro.id) ? "Remove from the menu bar" : "Show in the menu bar"))
                     Button { Task { await remap.run(macroID: macro.id) } } label: { Image(systemName: "play.fill") }
                         .buttonStyle(.plain).help("Run now")
                     Button { editing = macro } label: { Image(systemName: "pencil") }.buttonStyle(.plain).help("Edit")
