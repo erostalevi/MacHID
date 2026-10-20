@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Observation
 import MacHIDApplication
 import MacHIDDomain
@@ -31,6 +32,9 @@ public final class AppModel {
     public private(set) var frontmostBundleID: String?
     public private(set) var inputMonitoringGranted = true
     public var banner: String?
+    /// False until the first device scan finishes, so the window can show a loading state instead of "no devices".
+    public private(set) var hasScanned = false
+    public var selectedSection: ControlSection = .lighting
     /// Set by the app scene so the delegate and the menu can bring the window forward.
     @ObservationIgnored public var openMainWindow: (() -> Void)?
     /// Called after devices were plugged in or removed (the plugins page re-checks its recommendations).
@@ -79,6 +83,7 @@ public final class AppModel {
     /// Design review only: shows sample devices without touching hardware.
     func setPreview(devices: [DeviceEntry], selected: String?, profileName: String?) {
         self.devices = devices
+        self.hasScanned = true
         self.selectedDeviceID = selected
         if let profileName, let selected, let definitionID = devices.first(where: { $0.id == selected })?.definition?.id {
             let profile = Profile(id: "preview", name: profileName, settings: [definitionID: [:]])
@@ -97,6 +102,7 @@ public final class AppModel {
             await self?.reloadAutomation()
             while !Task.isCancelled {
                 await self?.refreshDevices()
+                self?.hasScanned = true
                 try? await Task.sleep(for: interval)
             }
         }
@@ -115,6 +121,31 @@ public final class AppModel {
         eventTask?.cancel()
         pollTask = nil
         eventTask = nil
+    }
+
+    /// Sections the selected device has controls for, in display order.
+    public var availableSections: [ControlSection] {
+        guard let device = selectedDevice else { return [] }
+        return ControlSection.allCases.filter { candidate in device.specs.contains { $0.section == candidate } }
+    }
+
+    /// Menu title for the n-th section shortcut.
+    public func sectionTitle(at index: Int) -> LocalizedStringKey {
+        let sections = availableSections
+        guard sections.indices.contains(index) else { return "Section \(index + 1)" }
+        switch sections[index] {
+        case .lighting: return "Lighting"
+        case .performance: return "Performance"
+        case .image: return "Image"
+        case .advanced: return "Advanced"
+        case .info: return "Details"
+        }
+    }
+
+    /// Switches to the n-th available section (0-based); ignored when the device has fewer.
+    public func selectSection(at index: Int) {
+        let sections = availableSections
+        if sections.indices.contains(index) { selectedSection = sections[index] }
     }
 
     public var selectedDevice: DeviceEntry? {

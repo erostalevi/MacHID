@@ -4,7 +4,6 @@ import MacHIDDomain
 /// Main window: the device in the middle, glass pills around it, one floating card of controls.
 public struct MainWindowView: View {
     @Bindable var model: AppModel
-    @State private var section: ControlSection = .lighting
     @State private var savingProfile = false
     @State private var profileName = ""
     @Namespace private var chipNamespace
@@ -25,7 +24,7 @@ public struct MainWindowView: View {
                               artwork: model.artwork(for: device),
                               interactive: Set(device.specs.map(\.id))) { capability in
                         if let spec = device.specs.first(where: { $0.id == capability }) {
-                            withAnimation(Motion(reduce: reduceMotion).snappy) { section = spec.section }
+                            withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedSection = spec.section }
                         }
                     }
                         .id(device.id)
@@ -40,6 +39,8 @@ public struct MainWindowView: View {
                 }
                 .padding(28)
                 .motion(\.smooth, value: effectiveSection(device))
+            } else if !model.hasScanned {
+                loadingState
             } else {
                 emptyState
             }
@@ -50,13 +51,22 @@ public struct MainWindowView: View {
             }
             VStack(spacing: 10) {
                 Spacer()
-                if let banner = model.banner { bannerPill(banner) }
+                if let banner = model.banner {
+                    bannerPill(banner)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .task(id: banner) {
+                            try? await Task.sleep(for: .seconds(6))
+                            if !Task.isCancelled, model.banner == banner { model.banner = nil }
+                        }
+                }
                 if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionPill }
             }
             .padding(20)
         }
         .frame(minWidth: 680, minHeight: 600)
         .motion(\.smooth, value: model.selectedDeviceID)
+        .motion(\.smooth, value: model.banner)
+        .motion(\.smooth, value: model.hasScanned)
     }
 
     // MARK: Pieces
@@ -147,7 +157,7 @@ public struct MainWindowView: View {
         return HStack(spacing: 4) {
             ForEach(sections(of: device), id: \.self) { candidate in
                 Button {
-                    withAnimation(motion.snappy) { section = candidate }
+                    withAnimation(motion.snappy) { model.selectedSection = candidate }
                 } label: {
                     Label { Titles.section(candidate) } icon: { Image(systemName: Titles.symbol(for: candidate)) }
                         .font(.callout.weight(candidate == selected ? .semibold : .regular))
@@ -180,11 +190,23 @@ public struct MainWindowView: View {
         .glassSurface(cornerRadius: 32)
     }
 
+    private var loadingState: some View {
+        VStack(spacing: 14) {
+            ProgressView().controlSize(.large)
+            Text("Looking for devices…").foregroundStyle(.secondary)
+        }
+        .padding(40)
+        .glassSurface(cornerRadius: 32)
+        .transition(.opacity)
+        .accessibilityElement(children: .combine)
+    }
+
     private func bannerPill(_ message: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             Text(verbatim: message).font(.callout).lineLimit(2)
             Button { model.banner = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain)
+                .accessibilityLabel(Text("Dismiss"))
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .glassSurface(cornerRadius: 22)
@@ -208,7 +230,7 @@ public struct MainWindowView: View {
 
     private func effectiveSection(_ device: AppModel.DeviceEntry) -> ControlSection {
         let available = sections(of: device)
-        return available.contains(section) ? section : (available.first ?? .info)
+        return available.contains(model.selectedSection) ? model.selectedSection : (available.first ?? .info)
     }
 
     /// Accent follows the backlight color when the device has one.
