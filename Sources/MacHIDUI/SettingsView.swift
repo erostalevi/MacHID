@@ -5,13 +5,34 @@ import MacHIDDomain
 /// Settings: start at login, automatic profiles, per-device defaults and per-app rules.
 public struct SettingsView: View {
     @Bindable var model: AppModel
+    @Bindable var remap: RemapController
+
+    public init(model: AppModel, remap: RemapController) {
+        self.model = model
+        self.remap = remap
+    }
+
+    public var body: some View {
+        TabView {
+            GeneralSettings(model: model)
+                .tabItem { Label("General", systemImage: "gearshape") }
+            RemapView(remap: remap)
+                .tabItem { Label("Remap", systemImage: "keyboard") }
+            MacrosView(remap: remap)
+                .tabItem { Label("Macros", systemImage: "play.rectangle") }
+        }
+        .frame(minWidth: 620, minHeight: 560)
+        .background(.background)
+    }
+}
+
+private struct GeneralSettings: View {
+    @Bindable var model: AppModel
     @State private var launchAtLogin = LoginItem.isEnabled
     @State private var loginError: String?
     @State private var addingRule = false
 
-    public init(model: AppModel) { self.model = model }
-
-    public var body: some View {
+    var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 general
@@ -20,8 +41,6 @@ public struct SettingsView: View {
             }
             .padding(24)
         }
-        .frame(minWidth: 560, minHeight: 520)
-        .background(.background)
     }
 
     private func card<Content: View>(_ title: Text, @ViewBuilder content: () -> Content) -> some View {

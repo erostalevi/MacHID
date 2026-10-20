@@ -68,6 +68,14 @@ public final class RemapController {
 
     // MARK: Lifecycle
 
+    /// Design review only: shows sample rules and macros without touching the keyboard.
+    func setPreview(config: RemapConfig, runs: [MacroLogEntry]) {
+        self.config = config
+        self.recentRuns = runs
+        self.inputMonitoringGranted = true
+        self.accessibilityGranted = false
+    }
+
     public func load() async {
         config = (try? await repository.load()) ?? RemapConfig()
         engine.update(config: config)

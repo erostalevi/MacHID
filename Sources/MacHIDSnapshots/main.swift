@@ -39,7 +39,10 @@ func run() {
         render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 760, height: 660), to: out.appendingPathComponent("window-\(name)-dark.png"), dark: true)
     }
     let model = PreviewSupport.model(selecting: .mouse)
-    render(SettingsView(model: model).background(backdrop), size: CGSize(width: 600, height: 620), to: out.appendingPathComponent("settings.png"))
+    let remap = PreviewSupport.remapController()
+    render(SettingsView(model: model, remap: remap).background(backdrop), size: CGSize(width: 620, height: 600), to: out.appendingPathComponent("settings.png"))
+    render(RemapView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 560), to: out.appendingPathComponent("remap.png"))
+    render(MacrosView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 640), to: out.appendingPathComponent("macros.png"))
     render(MenuPanelView(model: model).background(backdrop), size: CGSize(width: 340, height: 420), to: out.appendingPathComponent("menu-panel.png"))
 }
 

@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MacHIDApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = AppModel.live()
+    @State private var remap = RemapController.live()
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
@@ -36,6 +37,7 @@ struct MacHIDApp: App {
                     }
                     delegate.onReopen = model.openMainWindow
                     model.start()
+                    Task { await remap.load() }
                     // Opened by the user (not by a login item): show the window right away.
                     if !CommandLine.arguments.contains("--background") { model.openMainWindow?() }
                 }
@@ -49,7 +51,7 @@ struct MacHIDApp: App {
         .defaultSize(width: 760, height: 660)
 
         Window("Settings", id: "settings") {
-            SettingsView(model: model)
+            SettingsView(model: model, remap: remap)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 600, height: 620)

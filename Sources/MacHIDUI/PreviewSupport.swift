@@ -29,6 +29,51 @@ public enum PreviewSupport {
     }
 }
 
+extension PreviewSupport {
+    private actor Idle: EventPoster, ShellRunner, Launcher, MacroLog, RemapRepository {
+        func post(_ event: OutputEvent) async {}
+        func type(_ text: String) async {}
+        func run(_ command: String, timeout: Duration) async -> ShellResult { ShellResult(exitCode: 0) }
+        func open(_ target: String) async -> Bool { true }
+        func runShortcut(named name: String) async -> Bool { true }
+        func record(_ entry: MacroLogEntry) async {}
+        func load() async throws -> RemapConfig { RemapConfig() }
+        func save(_ config: RemapConfig) async throws {}
+    }
+
+    private final class IdleTap: EventTapping, @unchecked Sendable {
+        func start() -> Bool { false }
+        func stop() {}
+        var isRunning: Bool { false }
+    }
+
+    /// A remap controller with sample rules and macros; it cannot touch the keyboard.
+    @MainActor
+    public static func remapController() -> RemapController {
+        let idle = Idle()
+        let runner = MacroRunner(poster: idle, shell: idle, launcher: idle, log: idle, fingerprint: { _ in "x" })
+        let controller = RemapController(repository: idle, runner: runner, fingerprint: { _ in "x" },
+                                         permissionCheck: { (true, false) }, makeTap: { _, _ in IdleTap() })
+        var config = RemapConfig()
+        config.enabled = true
+        config.macros = [
+            Macro(id: "m1", name: "Sign off", steps: [.text("Best regards"), .key(code: 36, modifiers: [])]),
+            Macro(id: "m2", name: "Backup notes", steps: [.shell("rsync -a ~/Notes ~/Backup/"), .open("com.apple.finder")], approvedFingerprint: "x"),
+            Macro(id: "m3", name: "Imported helper", steps: [.shortcut("Morning")], imported: true),
+        ]
+        config.rules = [
+            RemapRule(id: "r1", trigger: InputTrigger(kind: .mouseButton, code: 3), action: .macro("m1")),
+            RemapRule(id: "r2", trigger: InputTrigger(kind: .keyboard, code: 96, modifiers: [.function]), action: .key(code: 122, modifiers: [.command])),
+            RemapRule(id: "r3", trigger: InputTrigger(kind: .keyboard, code: 57), action: .disable, enabled: false),
+        ]
+        controller.setPreview(config: config, runs: [
+            MacroLogEntry(macroID: "m1", macroName: "Sign off", date: Date(), outcome: .completed, stepKinds: ["text", "key"], shellExitCodes: []),
+            MacroLogEntry(macroID: "m2", macroName: "Backup notes", date: Date(), outcome: .refused(.notApproved), stepKinds: ["shell", "open"], shellExitCodes: []),
+        ])
+        return controller
+    }
+}
+
 extension AppModel {
     @MainActor
     func loadPreviewDevices(_ definitions: [DeviceDefinition], selecting category: DeviceCategory, profileName: String?) {
