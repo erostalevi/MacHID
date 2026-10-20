@@ -24,7 +24,7 @@ Permitir cambiar DPI y color de iluminación del G203 de forma volátil, con com
 - **Pendiente en hardware**: luces (`backlight`) y `device_mode`.
 
 ## Riesgos y pendientes
-- **Luces sin validar en hardware.** Solo hay pruebas contra un dispositivo simulado construido a partir de las fuentes anteriores. Podría haber diferencias en el G203 real (por ejemplo, otro número de zonas o un efecto "fijo" con otro id).
+- ~~Luces sin validar en hardware~~ (resuelto, ver la sección de 0x8071). Solo hay pruebas contra un dispositivo simulado construido a partir de las fuentes anteriores. Podría haber diferencias en el G203 real (por ejemplo, otro número de zonas o un efecto "fijo" con otro id).
 - El efecto previo del mouse no se puede leer ni restaurar desde MacHID; se recupera con `device_mode 0` o reconectando.
 - Si el DPI se aplica solo al perfil activo del mouse (perfil onboard), puede volver al valor guardado al reconectar; hay que comprobarlo.
 - Otras funciones (tasa de sondeo 0x8060/0x8061, perfiles onboard) no se tocan.
@@ -46,3 +46,8 @@ Implementado según las fuentes abiertas (Solaar, GPL-2.0-or-later, y libratbag 
 Riesgo conocido: el byte final `0x01` de 0x8071 se toma de un único comentario de Solaar (probado allí en otro mouse); si el G203 conserva el color tras desconectarlo, esa bandera hay que revisarla. Mientras el mouse esté en modo host los botones del perfil onboard pueden comportarse distinto; `device_mode 0` lo revierte.
 
 Pruebas: 81 pruebas unitarias en total (21 de HID++ nuevas, con un mouse simulado de 0x8071).
+
+## Validación en hardware de las luces (G203 real)
+Ejecutado desde el terminal de la app: `get device_mode` → `0`; `set backlight FF0000`, `00FF00` y `0000FF` (exit 0, 2 s cada uno); `get device_mode` → `1` durante el ciclo; `set device_mode 0` (exit 0); `get device_mode` → `0`. El usuario confirmó que las luces pasaron por rojo, verde y azul y que luego volvieron a su efecto original. Quedan validados en un G203 LIGHTSYNC: 0x8071 (información de zona y efectos, SetSWControl, modo host de perfiles onboard, SetEffectByIndex) y la liberación.
+
+Pendiente: comprobar que el color no persiste tras desconectar el mouse (la bandera final `0x01`) y el comportamiento de los botones durante el modo host.
