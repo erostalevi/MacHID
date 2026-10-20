@@ -1,6 +1,6 @@
 # MacHID: notes for working in this repo
 
-macOS menu bar app + CLI that manages mouse, keyboard and camera settings without vendor software. Swift package (macOS 14+), GPLv3. Hexagonal layout: `MacHIDDomain` (pure model, ports) <- `MacHIDApplication` (use cases) <- adapters (`MacHIDIOKit`, `MacHIDQuartz`, `MacHIDSystem`, drivers `MacHIDRazer`/`MacHIDLogitech`/`MacHIDUVC`) <- `MacHIDUI`/`MacHIDApp`/`machid`. Read README.md and docs/SPEC.md first; every change gets a record in docs/changes/ (Spanish) per the engineering process.
+macOS menu bar app + CLI that manages mouse, keyboard and camera settings without vendor software. Swift package (macOS 14+), GPLv3. Hexagonal layout: `MacHIDDomain` (pure model, ports) <- `MacHIDApplication` (use cases) <- adapters (`MacHIDIOKit`, `MacHIDQuartz`, `MacHIDSystem`, drivers `MacHIDRazer`/`MacHIDLogitech`/`MacHIDUVC`) <- `MacHIDUI`/`MacHIDApp`/`machid`. Read docs/HANDOFF.md (state, hardware facts, open work), README.md and docs/SPEC.md first; every change gets a record in docs/changes/ (Spanish) per the engineering process.
 
 ## Build and test
 - `~/Documents` is iCloud-synced and its File Provider attributes make `codesign` fail on test bundles. Never build in the repo tree: `swift build|test|run --scratch-path /private/tmp/<dir>`.

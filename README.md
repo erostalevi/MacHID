@@ -45,7 +45,7 @@ Sources/
   machid / machid-validate / MacHIDSnapshots  tools
 Definitions/   device definitions (data)   Schemas/   JSON Schemas   docs/   spec, change records
 ```
-Start with [docs/SPEC.md](docs/SPEC.md); every change is recorded in [docs/changes](docs/changes). Releases are described in [docs/RELEASE.md](docs/RELEASE.md).
+Start with [docs/HANDOFF.md](docs/HANDOFF.md) (current state and next steps) and [docs/SPEC.md](docs/SPEC.md); every change is recorded in [docs/changes](docs/changes). Releases are described in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Safety
 Writes are volatile: nothing is stored in a device's memory, and firmware is never touched. Commands come from open protocol documentation (OpenRazer, libratbag, Solaar, the Linux UVC driver) and are checked against what the device itself reports. Remapping is off until you turn it on, never records what you type, and macros that run shell commands, open things or use Shortcuts must be approved by you; editing one revokes approval. See SPEC §9.
