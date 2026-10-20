@@ -5,6 +5,7 @@
   "usb_ids": ["046d:c092"],
   "driver": "logitech-gseries",
   "capabilities": [
-    { "id": "info", "type": "info", "access": "read" }
+    { "id": "info", "type": "info", "access": "read" },
+    { "id": "dpi", "type": "dpi", "access": "read" }
   ]
 }

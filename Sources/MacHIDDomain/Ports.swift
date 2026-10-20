@@ -3,6 +3,20 @@
 public protocol Transport: Sendable {
     func sendFeatureReport(reportID: UInt8, _ data: [UInt8]) async throws
     func getFeatureReport(reportID: UInt8, length: Int) async throws -> [UInt8]
+    /// Output report (host to device). Used by HID++.
+    func sendOutputReport(reportID: UInt8, _ data: [UInt8]) async throws
+    /// Next input report (device to host), without its report ID byte; throws on timeout.
+    func nextInputReport(timeout: Duration) async throws -> (reportID: UInt8, data: [UInt8])
+}
+
+extension Transport {
+    public func sendOutputReport(reportID: UInt8, _ data: [UInt8]) async throws {
+        throw DriverError.deviceFailure("this transport does not support output reports")
+    }
+
+    public func nextInputReport(timeout: Duration) async throws -> (reportID: UInt8, data: [UInt8]) {
+        throw DriverError.deviceFailure("this transport does not support input reports")
+    }
 }
 
 public enum DriverError: Error, Equatable, CustomStringConvertible {
