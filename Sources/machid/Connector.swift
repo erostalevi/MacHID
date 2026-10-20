@@ -3,6 +3,7 @@ import MacHIDDomain
 import MacHIDIOKit
 import MacHIDLogitech
 import MacHIDRazer
+import MacHIDUVC
 
 /// Composition root: picks the driver family and opens the matching transport.
 struct SystemDeviceConnector: DeviceConnector {
@@ -20,6 +21,8 @@ struct SystemDeviceConnector: DeviceConnector {
             // HID++ lives on the interface whose long output report is 20 bytes.
             let transport = try IOKitHIDTransport(usbId: device.usbId, selector: .outputReportSize(20))
             return (HidppDriver(), wrap(transport))
+        case "uvc":
+            return (UVCDriver(), wrap(try IOKitUSBTransport(usbId: device.usbId)))
         default:
             throw DriverError.deviceFailure("no driver available yet for family '\(definition.driver)'")
         }

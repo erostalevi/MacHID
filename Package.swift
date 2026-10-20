@@ -19,13 +19,16 @@ let package = Package(
         .target(name: "MacHIDRazer", dependencies: ["MacHIDDomain"]),
         // Protocol-family driver: Logitech HID++ 2.0 (read-only for now).
         .target(name: "MacHIDLogitech", dependencies: ["MacHIDDomain"]),
+        // Generic USB Video Class driver: camera controls via class requests.
+        .target(name: "MacHIDUVC", dependencies: ["MacHIDDomain"]),
         // Adapter: IOKit enumeration. The only place that imports IOKit.
-        .target(name: "MacHIDIOKit", dependencies: ["MacHIDDomain"]),
-        .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDRazer", "MacHIDLogitech"]),
+        .target(name: "MacHIDIOKit", dependencies: ["MacHIDDomain"], linkerSettings: [.linkedFramework("IOUSBHost")]),
+        .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDRazer", "MacHIDLogitech", "MacHIDUVC"]),
         .executableTarget(name: "machid-validate", dependencies: ["MacHIDDomain"]),
         .testTarget(name: "MacHIDDomainTests", dependencies: ["MacHIDDomain"]),
         .testTarget(name: "MacHIDRazerTests", dependencies: ["MacHIDRazer", "MacHIDDomain"]),
         .testTarget(name: "MacHIDLogitechTests", dependencies: ["MacHIDLogitech", "MacHIDDomain"]),
+        .testTarget(name: "MacHIDUVCTests", dependencies: ["MacHIDUVC", "MacHIDDomain"]),
         .testTarget(name: "MacHIDApplicationTests", dependencies: ["MacHIDApplication", "MacHIDDomain"]),
     ]
 )

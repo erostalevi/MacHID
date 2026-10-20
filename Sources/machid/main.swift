@@ -137,7 +137,9 @@ do {
             else if let color = parseColor(args[3]) { value = .color(color) }
             else { fail("backlight must be RRGGBB (hex) or 'off'", code: 2) }
         default:
-            fail("'\(args[2])' cannot be set from the CLI yet", code: 2)
+            // Any other capability takes a whole number; the definition and the driver validate it.
+            guard let number = Int(args[3]) else { fail("'\(args[2])' takes a whole number", code: 2) }
+            value = .int(number)
         }
         try await control.write(id, capability: args[2], value: value)
         print("OK: \(args[2]) = \(describe(value))  (volatile; not saved to the device)")

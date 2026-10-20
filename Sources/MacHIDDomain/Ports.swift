@@ -7,9 +7,29 @@ public protocol Transport: Sendable {
     func sendOutputReport(reportID: UInt8, _ data: [UInt8]) async throws
     /// Next input report (device to host), without its report ID byte; throws on timeout.
     func nextInputReport(timeout: Duration) async throws -> (reportID: UInt8, data: [UInt8])
+    /// USB control transfer on endpoint 0 (device to host). Used by UVC.
+    func controlRead(requestType: UInt8, request: UInt8, value: UInt16, index: UInt16, length: Int) async throws -> [UInt8]
+    /// USB control transfer on endpoint 0 (host to device).
+    func controlWrite(requestType: UInt8, request: UInt8, value: UInt16, index: UInt16, data: [UInt8]) async throws
+    /// Raw configuration descriptor (all interfaces and class-specific descriptors).
+    func usbConfigurationDescriptor() async throws -> [UInt8]
 }
 
+/// Defaults for transports that do not support an operation. Because each one is also a protocol
+/// requirement, a conforming type's own implementation is the one that runs.
 extension Transport {
+    public func controlRead(requestType: UInt8, request: UInt8, value: UInt16, index: UInt16, length: Int) async throws -> [UInt8] {
+        throw DriverError.deviceFailure("this transport does not support USB control transfers")
+    }
+
+    public func controlWrite(requestType: UInt8, request: UInt8, value: UInt16, index: UInt16, data: [UInt8]) async throws {
+        throw DriverError.deviceFailure("this transport does not support USB control transfers")
+    }
+
+    public func usbConfigurationDescriptor() async throws -> [UInt8] {
+        throw DriverError.deviceFailure("this transport cannot read USB descriptors")
+    }
+
     public func sendOutputReport(reportID: UInt8, _ data: [UInt8]) async throws {
         throw DriverError.deviceFailure("this transport does not support output reports")
     }
