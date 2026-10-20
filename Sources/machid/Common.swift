@@ -52,6 +52,7 @@ func describe(_ value: SettingValue) -> String {
     case .battery(let percent, let charging):
         (percent.map { "\($0)%" } ?? "unknown") + (charging == true ? " (charging)" : "")
     case .text(let text): text
+    case .keyFrame(let keys): "\(keys.count) keys"
     }
 }
 

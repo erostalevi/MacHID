@@ -1,12 +1,11 @@
 import SwiftUI
 import MacHIDDomain
 
-/// Main window: the device in the middle, glass pills around it, one floating card of controls.
+/// One floating glass panel: the device on the left, its settings on the right. The window has a fixed size.
 public struct MainWindowView: View {
     @Bindable var model: AppModel
     @State private var savingProfile = false
     @State private var profileName = ""
-    @Namespace private var chipNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OnboardingStore.key) private var onboardingDone = false
     var remap: RemapController?
@@ -16,81 +15,87 @@ public struct MainWindowView: View {
     public var body: some View {
         ZStack {
             if let device = model.selectedDevice {
-                VStack(spacing: 20) {
-                    topBar(device)
-                    Spacer(minLength: 0)
-                    DeviceArt(category: device.definition?.category ?? .other, accent: accent(for: device),
-                              artwork: model.artwork(for: device),
-                              interactive: Set(device.specs.map(\.id))) { capability in
-                        if let spec = device.specs.first(where: { $0.id == capability }) {
-                            withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedSection = spec.section }
-                        }
-                    }
-                        .id(device.id)
-                        .transition(.opacity)
-                    sectionChips(device)
-                    if sections(of: device).contains(effectiveSection(device)) {
-                        ControlPanel(model: model, device: device, section: effectiveSection(device))
-                            .id(effectiveSection(device))
-                            .transition(.opacity)
-                    }
-                    Spacer(minLength: 0)
+                HStack(spacing: 0) {
+                    stage(device)
+                    Rectangle().fill(.white.opacity(0.10)).frame(width: 1).padding(.vertical, 18)
+                    DeviceSidebar(model: model, device: device, remap: remap)
                 }
-                .padding(.horizontal, 28).padding(.top, 40).padding(.bottom, 28)
-                .motion(\.smooth, value: effectiveSection(device))
             } else if !model.hasScanned {
                 loadingState
             } else {
                 emptyState
             }
             if !onboardingDone {
-                Color.black.opacity(0.15).ignoresSafeArea()
+                Color.black.opacity(0.28)
                 OnboardingView(remap: remap) { withAnimation(Motion(reduce: reduceMotion).smooth) { onboardingDone = true } }
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
-            VStack(spacing: 10) {
-                Spacer()
-                if let banner = model.banner {
-                    bannerPill(banner)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .task(id: banner) {
-                            try? await Task.sleep(for: .seconds(6))
-                            if !Task.isCancelled, model.banner == banner { model.banner = nil }
-                        }
-                }
-                if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionPill }
-            }
-            .padding(20)
+            notices
         }
-        .frame(minWidth: 680, minHeight: 600)
+        .frame(width: Theme.windowSize.width, height: Theme.windowSize.height)
         .glassPanelWindow()
         .motion(\.smooth, value: model.selectedDeviceID)
         .motion(\.smooth, value: model.banner)
         .motion(\.smooth, value: model.hasScanned)
     }
 
-    // MARK: Pieces
+    // MARK: Stage
 
-    private func topBar(_ device: AppModel.DeviceEntry) -> some View {
-        GlassGroup(spacing: 12) {
-            HStack(spacing: 12) {
-                Menu {
-                    ForEach(model.devices) { entry in
-                        Button { model.selectedDeviceID = entry.id } label: {
-                            Label(entry.name, systemImage: Titles.symbol(for: entry.definition?.category ?? .other))
-                        }
-                    }
-                } label: {
-                    Label(device.name, systemImage: Titles.symbol(for: device.definition?.category ?? .other))
-                }
-                .menuStyle(.button).buttonStyle(PillButtonStyle())
-                .fixedSize()
-
+    private func stage(_ device: AppModel.DeviceEntry) -> some View {
+        ZStack {
+            DeviceStage(model: model, device: device, remap: remap) { _ in
+                withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedSection = .buttons }
+            }
+            VStack(spacing: 0) {
+                header(device)
                 Spacer()
+                if model.devices.count > 1 { dock }
+            }
+            .padding(.horizontal, Theme.inset).padding(.bottom, Theme.inset)
+        }
+        .frame(maxWidth: .infinity)
+    }
 
-                profileMenu(device)
+    private func header(_ device: AppModel.DeviceEntry) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(verbatim: device.name).font(.title2.weight(.semibold)).lineLimit(1)
+                HStack(spacing: 8) {
+                    if let percent = model.batteryPercent(for: device.id) { BatteryBadge(percent: percent, charging: model.isCharging(device.id)) }
+                    else { Text(verbatim: device.usbId.description).font(.caption.monospaced()).foregroundStyle(.secondary) }
+                }
+            }
+            .padding(.leading, 78)   // clears the window buttons
+            Spacer()
+            profileMenu(device)
+        }
+        .padding(.top, 18)
+    }
+
+    /// Switch between connected devices.
+    private var dock: some View {
+        HStack(spacing: 6) {
+            ForEach(model.devices) { entry in
+                Button { withAnimation(Motion(reduce: reduceMotion).smooth) { model.selectedDeviceID = entry.id } } label: {
+                    Image(systemName: Titles.symbol(for: entry.category))
+                        .font(.system(size: 16, weight: entry.id == model.selectedDevice?.id ? .semibold : .regular))
+                        .frame(width: 44, height: 36)
+                        .foregroundStyle(entry.id == model.selectedDevice?.id ? AnyShapeStyle(entry.accent) : AnyShapeStyle(.secondary))
+                        .background {
+                            if entry.id == model.selectedDevice?.id {
+                                RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous).fill(entry.accent.opacity(0.22))
+                                    .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous).strokeBorder(entry.accent.opacity(0.45), lineWidth: 1))
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(Text(verbatim: entry.name))
+                .accessibilityLabel(Text(verbatim: entry.name))
             }
         }
+        .padding(4)
+        .flatSurface(cornerRadius: Theme.chipRadius + 4)
     }
 
     private func profileMenu(_ device: AppModel.DeviceEntry) -> some View {
@@ -141,34 +146,7 @@ public struct MainWindowView: View {
         Task { await model.saveProfile(named: name, from: device.id) }
     }
 
-    /// One glass capsule holding the sections; the highlight slides to the selected one.
-    private func sectionChips(_ device: AppModel.DeviceEntry) -> some View {
-        let motion = Motion(reduce: reduceMotion)
-        let selected = effectiveSection(device)
-        return HStack(spacing: 4) {
-            ForEach(sections(of: device), id: \.self) { candidate in
-                Button {
-                    withAnimation(motion.snappy) { model.selectedSection = candidate }
-                } label: {
-                    Label { Titles.section(candidate) } icon: { Image(systemName: Titles.symbol(for: candidate)) }
-                        .font(.callout.weight(candidate == selected ? .semibold : .regular))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background {
-                            if candidate == selected {
-                                Capsule().fill(accent(for: device).opacity(0.28))
-                                    .overlay(Capsule().strokeBorder(accent(for: device).opacity(0.5), lineWidth: 1))
-                                    .matchedGeometryEffect(id: "selection", in: chipNamespace)
-                            }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(candidate == selected ? .isSelected : [])
-            }
-        }
-        .padding(5)
-        .flatSurface(cornerRadius: 26)
-    }
+    // MARK: States
 
     private var emptyState: some View {
         VStack(spacing: 14) {
@@ -178,7 +156,6 @@ public struct MainWindowView: View {
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(40)
-        .flatSurface(cornerRadius: 32)
     }
 
     private var loadingState: some View {
@@ -187,9 +164,25 @@ public struct MainWindowView: View {
             Text("Looking for devices…").foregroundStyle(.secondary)
         }
         .padding(40)
-        .flatSurface(cornerRadius: 32)
         .transition(.opacity)
         .accessibilityElement(children: .combine)
+    }
+
+    private var notices: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            if let banner = model.banner {
+                bannerPill(banner)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .task(id: banner) {
+                        try? await Task.sleep(for: .seconds(6))
+                        if !Task.isCancelled, model.banner == banner { model.banner = nil }
+                    }
+            }
+            if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionPill }
+        }
+        .padding(20)
+        .padding(.trailing, Theme.sidebarWidth)   // notices belong to the stage side
     }
 
     private func bannerPill(_ message: String) -> some View {
@@ -211,28 +204,5 @@ public struct MainWindowView: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .flatSurface(cornerRadius: 22)
-    }
-
-    // MARK: Helpers
-
-    private func sections(of device: AppModel.DeviceEntry) -> [ControlSection] {
-        ControlSection.allCases.filter { candidate in device.specs.contains { $0.section == candidate } }
-    }
-
-    private func effectiveSection(_ device: AppModel.DeviceEntry) -> ControlSection {
-        let available = sections(of: device)
-        return available.contains(model.selectedSection) ? model.selectedSection : (available.first ?? .info)
-    }
-
-    /// Accent follows the backlight color when the device has one.
-    private func accent(for device: AppModel.DeviceEntry) -> Color {
-        for (_, value) in device.values {
-            if case .color(let color) = value { return color.color }
-        }
-        switch device.definition?.category {
-        case .keyboard: return .purple
-        case .camera: return .teal
-        default: return .blue
-        }
     }
 }

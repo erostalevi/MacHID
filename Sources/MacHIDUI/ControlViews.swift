@@ -8,11 +8,17 @@ struct ControlRow: View {
     let spec: ControlSpec
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            label
-            control
-                .disabled(!spec.isWritable && !isDisplayOnly || blockedByAutomaticMode)
+        Group {
+            if spec.kind == .toggle {
+                HStack { Titles.control(spec.id).font(.subheadline.weight(.medium)); Spacer(); control }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    label
+                    control
+                }
+            }
         }
+        .disabled(!spec.isWritable && !isDisplayOnly || blockedByAutomaticMode)
         .opacity((spec.isWritable || isDisplayOnly) && !blockedByAutomaticMode ? 1 : 0.5)
         .motion(\.snappy, value: blockedByAutomaticMode)
     }
@@ -50,10 +56,14 @@ struct ControlRow: View {
             } label: { EmptyView() }
             .labelsHidden().pickerStyle(.segmented)
             .accessibilityLabel(Titles.control(spec.id))
-        case .lighting(let modes):
-            LightingControl(modes: modes, value: device.values[spec.id]) {
+        case .lighting(let modes, let zone):
+            LightingControl(modes: modes, zone: zone, value: device.values[spec.id]) {
                 model.set($0, capability: spec.id, on: device.id)
             }
+        case .dpiStages(let min, let max, let step, let slots):
+            DPIStagesControl(model: model, device: device, spec: spec, min: min, max: max, step: step, slots: slots)
+        case .keyLighting:
+            EmptyView()
         case .hostControl:
             let hostValue = spec.capability.parameters?.values?.max() ?? 1
             Toggle(isOn: Binding(get: { (currentInt ?? 0) != 0 },
@@ -80,9 +90,11 @@ struct ControlRow: View {
     private func sliderControl(min: Int, max: Int, step: Int, deviceLimits: Bool) -> some View {
         let limits = device.limits[spec.id]
         let low = limits?.min ?? min, high = limits?.max ?? max, stride = limits?.step ?? step
+        // No `step:` on the slider: it would draw a tick for every value. The value is snapped here instead.
+        let unit = Double(Swift.max(stride, 1))
         return Slider(value: Binding(get: { Double(currentInt ?? low) },
-                                     set: { model.set(.int(Int($0.rounded())), capability: spec.id, on: device.id) }),
-                      in: Double(low)...Double(Swift.max(high, low + 1)), step: Double(Swift.max(stride, 1)))
+                                     set: { model.set(.int(low + Int((($0 - Double(low)) / unit).rounded()) * Int(unit)), capability: spec.id, on: device.id) }),
+                      in: Double(low)...Double(Swift.max(high, low + 1)))
             .disabled(deviceLimits && limits == nil && device.values[spec.id] == nil)
             .accessibilityLabel(Titles.control(spec.id))
             .accessibilityValue(Text(verbatim: "\(currentInt ?? low)"))
@@ -99,74 +111,8 @@ struct ControlRow: View {
     }
 }
 
-/// Lighting: pick a mode, and a color for the modes that use one.
-private struct LightingControl: View {
-    let modes: [String]
-    let value: SettingValue?
-    let onChange: (SettingValue) -> Void
-
-    private static let swatches: [Color] = [.red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .white]
-
-    private var mode: String { LightingModes.mode(of: value) ?? modes.first ?? "static" }
-
-    private var color: Color {
-        switch value {
-        case .color(let rgb)?: rgb.color
-        case .effect(let effect)? where effect.color != nil: effect.color!.color
-        default: .white
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            modePicker
-            if LightingModes.usesColor(mode) {
-                HStack(spacing: 10) {
-                    ForEach(Self.swatches, id: \.self) { swatch in
-                        Button { select(mode, color: swatch) } label: {
-                            Circle().fill(swatch).frame(width: 24, height: 24)
-                                .overlay(Circle().strokeBorder(.white.opacity(0.6), lineWidth: 1))
-                                .overlay { if swatch == color { Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(.black.opacity(0.7)) } }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text(verbatim: "\(swatch.description)"))
-                    }
-                    ColorPicker("", selection: Binding(get: { color }, set: { select(mode, color: $0) }), supportsOpacity: false)
-                        .labelsHidden()
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .motion(\.snappy, value: mode)
-    }
-
-    private var modePicker: some View {
-        // A menu for many modes keeps the card calm; two or three fit as segments.
-        Group {
-            if modes.count <= 3 {
-                Picker(selection: Binding(get: { mode }, set: { select($0, color: color) })) {
-                    ForEach(modes, id: \.self) { Titles.lightingMode($0).tag($0) }
-                } label: { EmptyView() }
-                .labelsHidden().pickerStyle(.segmented)
-            } else {
-                FlowRow(spacing: 8) {
-                    ForEach(modes, id: \.self) { candidate in
-                        Button { select(candidate, color: color) } label: { Titles.lightingMode(candidate) }
-                            .buttonStyle(PillButtonStyle(selected: candidate == mode))
-                            .accessibilityAddTraits(candidate == mode ? .isSelected : [])
-                    }
-                }
-            }
-        }
-    }
-
-    private func select(_ mode: String, color: Color) {
-        onChange(LightingModes.value(for: mode, color: RGBColor(color)))
-    }
-}
-
 /// Lays chips out in rows that wrap when the card is narrow.
-private struct FlowRow: Layout {
+struct FlowRow: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

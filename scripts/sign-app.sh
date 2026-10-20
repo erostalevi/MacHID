@@ -6,6 +6,20 @@ set -euo pipefail
 APP="${1:?usage: sign-app.sh <app> [identity]}"
 IDENTITY="${2:--}"
 
+# The app needs the camera entitlement under the hardened runtime (live camera preview); the entitlements file
+# is generated outside the repo folder.
+ENT="$(mktemp /private/tmp/machid-entitlements.XXXXXX)"
+trap 'rm -f "$ENT"' EXIT
+cat > "$ENT" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.device.camera</key><true/>
+</dict>
+</plist>
+PLIST
+
 sign() {
   if [ "$IDENTITY" = "-" ]; then codesign --force --sign - --timestamp=none "$@"
   else codesign --force --sign "$IDENTITY" --options runtime --timestamp "$@"; fi
@@ -15,5 +29,5 @@ for item in "$SP"/XPCServices/*.xpc "$SP/Autoupdate" "$SP/Updater.app" "$APP/Con
   [ -e "$item" ] && sign "$item"
 done
 [ -e "$APP/Contents/MacOS/MacHIDPluginHost" ] && sign "$APP/Contents/MacOS/MacHIDPluginHost"
-sign "$APP"
+sign --entitlements "$ENT" "$APP"
 codesign --verify --strict --deep "$APP"

@@ -69,7 +69,9 @@
               "battery",
               "info",
               "camera_control",
-              "device_mode"
+              "device_mode",
+              "dpi_stages",
+              "per_key_lighting"
             ]
           },
           "access": {
@@ -103,6 +105,14 @@
                 "type": "integer",
                 "minimum": 1
               },
+              "rows": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "columns": {
+                "type": "integer",
+                "minimum": 1
+              },
               "zones": {
                 "type": "array",
                 "items": {
@@ -120,6 +130,37 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "period_min": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "period_max": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "brightness": {
+                      "type": "boolean"
+                    },
+                    "waveforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mode_options": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "speed_min": { "type": "integer" },
+                          "speed_max": { "type": "integer" },
+                          "directions": { "type": "array", "items": { "type": "string" } },
+                          "colors_min": { "type": "integer", "minimum": 0 },
+                          "colors_max": { "type": "integer", "minimum": 0 }
+                        }
                       }
                     }
                   }

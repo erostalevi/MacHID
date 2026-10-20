@@ -24,6 +24,8 @@ struct WindowGlass: NSViewRepresentable {
 
         private func configure(_ window: NSWindow) {
             window.styleMask.insert(.fullSizeContentView)
+            window.styleMask.remove(.resizable)
+            window.standardWindowButton(.zoomButton)?.isHidden = true
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.isMovableByWindowBackground = true

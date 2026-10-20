@@ -117,6 +117,11 @@ public struct DeviceControl: Sendable {
         case (.lightingZone, .text(let mode)):
             let modes = parameters?.zones?.flatMap(\.modes) ?? []
             guard modes.contains(mode) else { throw ControlError.invalidValue("'\(capability.id)' has no mode '\(mode)'") }
+        case (.perKeyLighting, .keyFrame(let keys)):
+            let rows = parameters?.rows ?? 0, columns = parameters?.columns ?? 0
+            for key in keys where !(0..<rows).contains(key.row) || !(0..<columns).contains(key.col) {
+                throw ControlError.outOfRange("key (\(key.row), \(key.col)) is outside the \(rows)x\(columns) matrix")
+            }
         default:
             throw ControlError.invalidValue("wrong value type for '\(capability.id)'")
         }

@@ -36,8 +36,8 @@ func run() {
     let backdrop = Color(nsColor: .windowBackgroundColor)
     for (name, category) in [("keyboard", DeviceCategory.keyboard), ("mouse", .mouse), ("camera", .camera)] {
         let model = PreviewSupport.model(selecting: category)
-        render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 760, height: 660), to: out.appendingPathComponent("window-\(name).png"))
-        render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 760, height: 660), to: out.appendingPathComponent("window-\(name)-dark.png"), dark: true)
+        render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 1020, height: 680), to: out.appendingPathComponent("window-\(name).png"))
+        render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 1020, height: 680), to: out.appendingPathComponent("window-\(name)-dark.png"), dark: true)
     }
     let model = PreviewSupport.model(selecting: .mouse)
     let remap = PreviewSupport.remapController()

@@ -70,6 +70,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleLocalizations</key><array><string>en</string><string>es</string></array>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
+  <key>NSCameraUsageDescription</key><string>MacHID shows a live preview so you can see camera setting changes as you make them. Nothing is recorded or sent anywhere.</string>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHumanReadableCopyright</key><string>MacHID is free software (GPLv3).</string>
 ${REGISTRY_KEY_PLIST}

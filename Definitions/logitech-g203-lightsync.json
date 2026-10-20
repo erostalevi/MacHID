@@ -18,6 +18,11 @@
       "access": "read"
     },
     {
+      "id": "onboard_state",
+      "type": "info",
+      "access": "read"
+    },
+    {
       "id": "dpi",
       "type": "dpi",
       "access": "write_volatile",
@@ -25,6 +30,17 @@
         "min": 200,
         "max": 8000,
         "step": 50
+      }
+    },
+    {
+      "id": "dpi_stages",
+      "type": "dpi_stages",
+      "access": "write_volatile",
+      "parameters": {
+        "min": 200,
+        "max": 8000,
+        "step": 50,
+        "slots": 5
       }
     },
     {
@@ -64,6 +80,18 @@
               "off",
               "cycle",
               "breathing"
+            ],
+            "period_min": 1000,
+            "period_max": 20000,
+            "brightness": true,
+            "waveforms": [
+              "default",
+              "sine",
+              "square",
+              "triangle",
+              "sawtooth",
+              "shark_fin",
+              "exponential"
             ]
           }
         ]

@@ -89,6 +89,8 @@ extension AppModel {
                 case .toggle: entry.values[spec.id] = .int(1)
                 case .choice(let values): entry.values[spec.id] = .int(values.last ?? 0)
                 case .lighting: entry.values[spec.id] = .color(MacHIDDomain.RGBColor(r: 120, g: 70, b: 255))
+                case .dpiStages: entry.values[spec.id] = .text("800,1600,3200")
+                case .keyLighting: break
                 case .hostControl: entry.values[spec.id] = .int(0)
                 case .readout: entry.values[spec.id] = .text("v1.12")
                 case .battery: entry.values[spec.id] = .battery(percent: 64, charging: false)

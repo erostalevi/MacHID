@@ -7,7 +7,11 @@ public enum ControlKind: Equatable, Sendable {
     case toggle
     case choice([Int])
     /// Lighting zone: the modes the device offers (static, off, spectrum, wave, ...).
-    case lighting(modes: [String])
+    case lighting(modes: [String], zone: LightingZone?)
+    /// Host-side list of DPI steps (see `CapabilityType.dpiStages`).
+    case dpiStages(min: Int, max: Int, step: Int, slots: Int)
+    /// Per-key colors; edited on the keyboard drawing.
+    case keyLighting(rows: Int, columns: Int)
     /// Host (software) control of the device's lighting or mode.
     case hostControl
     case readout
@@ -16,7 +20,7 @@ public enum ControlKind: Equatable, Sendable {
 }
 
 public enum ControlSection: String, CaseIterable, Sendable {
-    case lighting, performance, image, advanced, info
+    case lighting, buttons, performance, image, advanced, info
 }
 
 public struct ControlSpec: Equatable, Sendable, Identifiable {
@@ -35,7 +39,7 @@ public struct ControlSpec: Equatable, Sendable, Identifiable {
         case .lightingZone:
             let modes = parameters?.zones?.flatMap(\.modes) ?? []
             guard modes.contains("static") else { return nil }
-            return ControlSpec(capability: capability, kind: .lighting(modes: modes), section: .lighting, readable: false)
+            return ControlSpec(capability: capability, kind: .lighting(modes: modes, zone: parameters?.zones?.first), section: .lighting, readable: false)
         case .pollingRate:
             let rates = parameters?.values?.sorted() ?? [125, 250, 500, 1000]
             return ControlSpec(capability: capability, kind: .choice(rates), section: .performance, readable: true)
@@ -57,6 +61,13 @@ public struct ControlSpec: Equatable, Sendable, Identifiable {
                                section: .image, readable: true)
         case .battery:
             return ControlSpec(capability: capability, kind: .battery, section: .info, readable: true)
+        case .dpiStages:
+            return ControlSpec(capability: capability, kind: .dpiStages(min: parameters?.min ?? 200, max: parameters?.max ?? 8000,
+                                                                       step: parameters?.step ?? 50, slots: parameters?.slots ?? 5),
+                               section: .performance, readable: false)
+        case .perKeyLighting:
+            return ControlSpec(capability: capability, kind: .keyLighting(rows: parameters?.rows ?? 5, columns: parameters?.columns ?? 15),
+                               section: .lighting, readable: false)
         case .deviceMode:
             return ControlSpec(capability: capability, kind: .hostControl, section: .advanced, readable: true)
         default:

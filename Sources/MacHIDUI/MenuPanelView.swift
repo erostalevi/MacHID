@@ -15,23 +15,76 @@ public struct MenuPanelView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if model.devices.isEmpty {
-                Text("No supported devices connected").font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 14)
+        VStack(alignment: .leading, spacing: Theme.gap - 2) {
+            if let device = model.selectedDevice {
+                header(device)
+                DeviceCard(model: model, device: device)
+                    .id(device.id)
+                    .transition(.opacity)
             } else {
-                ForEach(Array(model.devices.enumerated()), id: \.element.id) { index, device in
-                    if index > 0 { Divider().opacity(0.5) }
-                    DeviceCard(model: model, device: device)
-                }
+                emptyState
             }
             if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionRow }
-            if let remap { macrosSection(remap) }
-            Divider().opacity(0.5)
+            if let remap { remapRow(remap); macrosSection(remap) }
             footer
         }
         .padding(14)
-        .frame(width: 300)
+        .frame(width: 316)
+        .motion(\.smooth, value: model.selectedDeviceID)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "cable.connector.horizontal").font(.system(size: 34, weight: .thin)).foregroundStyle(.secondary)
+            Text("No supported devices connected").font(.callout).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 22)
+    }
+
+    /// Device name with the same switcher the window has.
+    private func header(_ device: AppModel.DeviceEntry) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: Titles.symbol(for: device.category))
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(device.accent)
+                .frame(width: 34, height: 34)
+                .background(device.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: device.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                if let percent = model.batteryPercent(for: device.id) { BatteryBadge(percent: percent, charging: model.isCharging(device.id)) }
+                else { Text("Connected").font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            if model.devices.count > 1 {
+                HStack(spacing: 2) {
+                    ForEach(model.devices) { entry in
+                        Button { model.selectedDeviceID = entry.id } label: {
+                            Image(systemName: Titles.symbol(for: entry.category))
+                                .font(.system(size: 12)).frame(width: 28, height: 26)
+                                .foregroundStyle(entry.id == device.id ? AnyShapeStyle(entry.accent) : AnyShapeStyle(.secondary))
+                                .background(entry.id == device.id ? entry.accent.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain).help(Text(verbatim: entry.name)).accessibilityLabel(Text(verbatim: entry.name))
+                    }
+                }
+                .padding(2).background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
+
+    private func remapRow(_ remap: RemapController) -> some View {
+        HStack {
+            Image(systemName: "keyboard").foregroundStyle(.secondary).frame(width: 20)
+            Text("Remapping").font(.callout)
+            if remap.config.enabled {
+                Circle().fill(remap.isActive ? Color.green : Color.orange).frame(width: 6, height: 6)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(get: { remap.config.enabled }, set: { value in Task { await remap.setEnabled(value) } }))
+                .labelsHidden().toggleStyle(.switch).controlSize(.small)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .flatSurface(cornerRadius: Theme.cardRadius)
     }
 
     @ViewBuilder private func macrosSection(_ remap: RemapController) -> some View {
@@ -59,6 +112,7 @@ public struct MenuPanelView: View {
                     .accessibilityHint(approved ? Text("") : Text("Needs your approval in Settings > Macros first"))
                 }
             }
+            .padding(14).flatSurface(cornerRadius: Theme.cardRadius)
             .motion(\.smooth, value: remap.isRunning)
         }
     }
@@ -72,6 +126,7 @@ public struct MenuPanelView: View {
             Spacer()
             Button("Allow") { PermissionActions.requestInputMonitoring() }.buttonStyle(PillButtonStyle())
         }
+        .padding(.horizontal, 14).padding(.vertical, 10).flatSurface(cornerRadius: Theme.cardRadius)
     }
 
     private var footer: some View {
@@ -113,19 +168,16 @@ private struct DeviceCard: View {
     let device: AppModel.DeviceEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: Titles.symbol(for: device.definition?.category ?? .other)).frame(width: 22)
-                Text(verbatim: device.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                if let percent = model.batteryPercent(for: device.id) {
-                    BatteryBadge(percent: percent, charging: model.isCharging(device.id))
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Profile").font(.callout).foregroundStyle(.secondary)
                 Spacer()
                 profileMenu
             }
             ForEach(quickSpecs) { spec in quickControl(spec) }
             if let lighting = lightingSpec { lightingMenu(lighting) }
         }
+        .padding(14).flatSurface(cornerRadius: Theme.cardRadius)
     }
 
     /// The most useful controls at a glance: lighting brightness, DPI and the on/off of the backlight.
@@ -144,8 +196,8 @@ private struct DeviceCard: View {
                 Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
                 Slider(value: Binding(
                     get: { if case .int(let value)? = device.values[spec.id] { Double(value) } else { Double(min) } },
-                    set: { model.set(.int(Int($0.rounded())), capability: spec.id, on: device.id) }),
-                       in: Double(min)...Double(max), step: Double(step))
+                    set: { model.set(.int(min + Int((($0 - Double(min)) / Double(Swift.max(step, 1))).rounded()) * Swift.max(step, 1)), capability: spec.id, on: device.id) }),
+                       in: Double(min)...Double(max))
                 if case .int(let value)? = device.values[spec.id] {
                     Text(verbatim: "\(value)").font(.caption.monospacedDigit()).frame(width: 40, alignment: .trailing)
                 }
@@ -159,7 +211,7 @@ private struct DeviceCard: View {
     }
 
     private func lightingMenu(_ spec: ControlSpec) -> some View {
-        let modes: [String] = { if case .lighting(let modes) = spec.kind { return modes }; return [] }()
+        let modes: [String] = { if case .lighting(let modes, _) = spec.kind { return modes }; return [] }()
         let current = LightingModes.mode(of: device.values[spec.id])
         return HStack(spacing: 10) {
             Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)

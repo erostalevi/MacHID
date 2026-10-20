@@ -22,10 +22,17 @@ import MacHIDDomain
 
     @Test func lightingNeedsAStaticMode() {
         let zones = { (modes: [String]) in CapabilityParameters(zones: [LightingZone(id: "z", modes: modes)]) }
-        #expect(spec(.lightingZone, zones(["static", "off", "wave"]))?.kind == .lighting(modes: ["static", "off", "wave"]))
-        #expect(spec(.lightingZone, zones(["static"]))?.kind == .lighting(modes: ["static"]))
+        #expect(spec(.lightingZone, zones(["static", "off", "wave"]))?.kind == .lighting(modes: ["static", "off", "wave"], zone: LightingZone(id: "z", modes: ["static", "off", "wave"])))
+        #expect(spec(.lightingZone, zones(["static"]))?.kind == .lighting(modes: ["static"], zone: LightingZone(id: "z", modes: ["static"])))
         #expect(spec(.lightingZone, zones(["wave"])) == nil)
         #expect(spec(.lightingZone, zones(["static"]))?.readable == false)
+    }
+
+    @Test func newKindsHaveControls() {
+        #expect(spec(.dpiStages, .init(min: 200, max: 8000, step: 50, slots: 5))?.kind == .dpiStages(min: 200, max: 8000, step: 50, slots: 5))
+        #expect(spec(.dpiStages)?.section == .performance)
+        #expect(spec(.perKeyLighting, .init(rows: 5, columns: 15))?.kind == .keyLighting(rows: 5, columns: 15))
+        #expect(spec(.perKeyLighting)?.section == .lighting)
     }
 
     @Test func infoAndModeAndUnknownTypes() {

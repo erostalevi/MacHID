@@ -2332,6 +2332,138 @@
           }
         }
       }
+    },
+    "Camera preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista previa de la cámara"
+          }
+        }
+      }
+    },
+    "Mirror preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reflejar la vista previa"
+          }
+        }
+      }
+    },
+    "Mirrored": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reflejada"
+          }
+        }
+      }
+    },
+    "Live preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista en vivo"
+          }
+        }
+      }
+    },
+    "LIVE": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN VIVO"
+          }
+        }
+      }
+    },
+    "Camera preview needs your permission.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vista previa necesita tu permiso para usar la cámara."
+          }
+        }
+      }
+    },
+    "Allow camera preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir vista previa de la cámara"
+          }
+        }
+      }
+    },
+    "Camera access is turned off for MacHID.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El acceso a la cámara está desactivado para MacHID."
+          }
+        }
+      }
+    },
+    "Open Privacy Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes de Privacidad"
+          }
+        }
+      }
+    },
+    "Camera not found. Check that it is plugged in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró la cámara. Comprueba que esté conectada."
+          }
+        }
+      }
+    },
+    "Try again": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        }
+      }
+    },
+    "The camera is busy or unavailable. Close other apps using it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La cámara está ocupada o no disponible. Cierra otras apps que la usen."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

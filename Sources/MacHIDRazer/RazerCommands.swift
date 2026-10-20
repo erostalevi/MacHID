@@ -85,4 +85,50 @@ public enum RazerCommands {
         return RazerReport(transactionID: standardTransactionID, commandClass: 0x00, commandID: 0x04, dataSize: 0x02,
                            arguments: [mode, 0x00])
     }
+
+    // MARK: Breathing, dual colors, custom frame (M11)
+
+    /// Breathing (effect 0x02). OpenRazer `razer_chroma_extended_matrix_effect_breathing_random/single/dual`.
+    /// Random: data size 6, no colors. Single: size 9, arg3 = 1, arg5 = 1, RGB at args 6...8.
+    /// Dual: size 0x0C, arg3 = 2, arg5 = 2, RGB1 at 6...8, RGB2 at 9...11.
+    public static func breathing(color: RGBColor?, secondColor: RGBColor?, transactionID: UInt8) -> RazerReport {
+        switch (color, secondColor) {
+        case (let first?, let second?):
+            return RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x0C,
+                               arguments: [varStore, backlightLED, 0x02, 0x02, 0x00, 0x02,
+                                           first.r, first.g, first.b, second.r, second.g, second.b])
+        case (let first?, nil):
+            return RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x09,
+                               arguments: [varStore, backlightLED, 0x02, 0x01, 0x00, 0x01, first.r, first.g, first.b])
+        default:
+            return RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x06,
+                               arguments: [varStore, backlightLED, 0x02])
+        }
+    }
+
+    /// Starlight with two colors (size 0x0C, arg5 = 2). OpenRazer `razer_chroma_extended_matrix_effect_starlight_dual`.
+    public static func starlight(speed: UInt8, color: RGBColor, secondColor: RGBColor, transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x0C,
+                    arguments: [varStore, backlightLED, 0x07, 0x00, min(max(speed, 1), 3), 0x02,
+                                color.r, color.g, color.b, secondColor.r, secondColor.g, secondColor.b])
+    }
+
+    /// One row of the custom frame (class 0x0F, command 0x03, data size 0x47). Layout from OpenRazer
+    /// `razer_chroma_extended_matrix_set_custom_frame2`: args 0...1 = 0, arg2 = row, arg3 = first column,
+    /// arg4 = last column (inclusive), RGB triplets from arg5. Huntsman Mini uses transaction id 0x3F
+    /// (`razer_attr_write_matrix_custom_frame` in razerkbd_driver.c).
+    public static func customFrameRow(row: UInt8, startColumn: UInt8, colors: [RGBColor], transactionID: UInt8) -> RazerReport {
+        precondition(!colors.isEmpty && colors.count <= 25, "a row carries 1...25 cells")
+        let stop = startColumn + UInt8(colors.count - 1)
+        let rgb = colors.flatMap { [$0.r, $0.g, $0.b] }
+        return RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x03, dataSize: 0x47,
+                           arguments: [0x00, 0x00, row, startColumn, stop] + rgb)
+    }
+
+    /// Shows the frame sent with `customFrameRow` (effect 0x08, data size 0x0C, no storage byte set).
+    /// OpenRazer `razer_chroma_extended_matrix_effect_custom_frame`.
+    public static func activateCustomFrame(transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x0C,
+                    arguments: [0x00, 0x00, 0x08])
+    }
 }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import MacHIDDomain
 @testable import MacHIDLogitech
@@ -467,5 +468,106 @@ private let pollingCapability = CapabilityDescriptor(id: "polling_rate", type: .
         let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1]))
         await #expect(throws: DriverError.self) { try await HidppDriver().write(.effect(LightingEffect("cycle")), to: backlightCapability, using: transport) }
         #expect(await calls(transport).allSatisfy { !($0.feature == rgbFeature && $0.function == 1) })
+    }
+}
+
+// MARK: - M11: effect parameters, DPI stages, onboard state
+
+private let stagesCapability = CapabilityDescriptor(id: "dpi_stages", type: .dpiStages, access: .writeVolatile)
+private let onboardCapability = CapabilityDescriptor(id: "onboard_state", type: .info, access: .read)
+
+@Suite struct EffectParameterTests {
+    @Test func cycleEncodesPeriodAndIntensity() throws {
+        let built = try HidppDriver.effectParameters(for: LightingEffect("cycle", period: 8000, brightness: 40))
+        #expect(built.id == 3 && built.parameters == [0, 0, 0, 0, 0, 0x1F, 0x40, 40])
+    }
+
+    @Test func cycleDefaultsKeepPreviousBytes() throws {
+        let built = try HidppDriver.effectParameters(for: LightingEffect("cycle"))
+        #expect(built.parameters == [0, 0, 0, 0, 0, 0x13, 0x88, 100])
+    }
+
+    @Test func breathingEncodesColorPeriodWaveformIntensity() throws {
+        let effect = LightingEffect("breathing", color: RGBColor(r: 1, g: 2, b: 3), period: 2000, brightness: 70, waveform: 1)
+        let built = try HidppDriver.effectParameters(for: effect)
+        #expect(built.id == 10 && built.parameters == [1, 2, 3, 0x07, 0xD0, 1, 70])
+    }
+
+    @Test func staticBrightnessScalesColor() throws {
+        let built = try HidppDriver.effectParameters(for: LightingEffect("static", color: RGBColor(r: 200, g: 100, b: 0), brightness: 50))
+        #expect(built.id == 1 && built.parameters == [100, 50, 0])
+    }
+
+    @Test func invalidValuesAreRejected() {
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("cycle", brightness: 0)) }
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("cycle", brightness: 101)) }
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("cycle", period: 0)) }
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("cycle", period: 70000)) }
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("breathing")) }
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("breathing", color: RGBColor(r: 0, g: 0, b: 0), waveform: 7)) }
+        #expect(throws: DriverError.self) { try HidppDriver.effectParameters(for: LightingEffect("wave")) }
+    }
+
+    @Test func breathingWriteSendsBytesOnRGBEffects() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1, 10]))
+        let effect = LightingEffect("breathing", color: RGBColor(r: 0, g: 255, b: 0), period: 3000, brightness: 80, waveform: 3)
+        try await HidppDriver().write(.effect(effect), to: backlightCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(set.feature == rgbFeature && set.function == 1)
+        #expect(Array(set.parameters.prefix(13)) == [0, 1, 0, 255, 0, 0x0B, 0xB8, 3, 80, 0, 0, 0, 1])
+    }
+
+    @Test func oldEffectJSONStillDecodes() throws {
+        let json = #"{"effect":"breathing","color":{"r":1,"g":2,"b":3}}"#.data(using: .utf8)!
+        let value = try JSONDecoder().decode(SettingValue.self, from: json)
+        #expect(value == .effect(LightingEffect("breathing", color: RGBColor(r: 1, g: 2, b: 3))))
+        let round = try JSONDecoder().decode(SettingValue.self, from: JSONEncoder().encode(SettingValue.effect(LightingEffect("cycle", period: 4000, brightness: 50))))
+        #expect(round == .effect(LightingEffect("cycle", period: 4000, brightness: 50)))
+    }
+}
+
+@Suite struct DPIStageTests {
+    @Test func validStagesWriteNothingToTheMouse() async throws {
+        let transport = FakeHidppTransport(script: simulatedMouse())
+        try await HidppDriver().write(.text("400,800, 1600,3200"), to: stagesCapability, using: transport)
+        #expect(await calls(transport).allSatisfy { !($0.feature == dpiFeature && $0.function == 3) })
+    }
+
+    @Test func unsupportedOrMalformedStagesAreRejected() async {
+        for text in ["425", "400,abc", "", "400,800,1200,1600,2000,2400", "400,,800"] {
+            let transport = FakeHidppTransport(script: simulatedMouse())
+            await #expect(throws: DriverError.self) { try await HidppDriver().write(.text(text), to: stagesCapability, using: transport) }
+        }
+    }
+
+    @Test func stageCycling() throws {
+        let stages = try #require(DPIStages(text: "400, 800,1600"))
+        #expect(stages.text == "400,800,1600")
+        #expect(stages.next(after: 400) == 800 && stages.next(after: 1600) == 400 && stages.next(after: 999) == 400)
+        #expect(DPIStages(text: "1,2,3,4,5,6") == nil && DPIStages(text: "") == nil && DPIStages(text: "0") == nil)
+    }
+}
+
+@Suite struct OnboardStateTests {
+    @Test func readsModeAndProfileWithoutWriting() async throws {
+        let transport = FakeHidppTransport { request in
+            if request.featureIndex == 0, request.function == 0 { return [reply(to: request, parameters: [15, 0, 1])] }
+            if request.function == 2 { return [reply(to: request, parameters: [2])] }
+            if request.function == 4 { return [reply(to: request, parameters: [0, 3])] }
+            return []
+        }
+        #expect(try await HidppDriver().read(onboardCapability, using: transport) == .text("mode=host profile=3"))
+        #expect(await calls(transport).allSatisfy { $0.function != 1 || $0.feature == 0 })
+    }
+}
+
+@Suite struct MouseLayoutTests {
+    @Test func g203ButtonsAndTriggers() throws {
+        let layout = try #require(MouseLayout.layout(forDefinition: "logitech-g203-lightsync"))
+        #expect(layout.buttons.count == 8)
+        #expect(layout.remappable.map(\.id) == ["left", "right", "middle", "back", "forward"])
+        #expect(layout.button(id: "forward")?.trigger == InputTrigger(kind: .mouseButton, code: 4))
+        #expect(layout.button(id: "dpi")?.trigger == nil && layout.button(id: "wheel_up")?.trigger == nil)
+        #expect(MouseLayout.layout(forDefinition: "x") == nil)
     }
 }

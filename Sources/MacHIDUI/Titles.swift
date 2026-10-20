@@ -30,10 +30,23 @@ enum Titles {
     static func section(_ section: ControlSection) -> Text {
         switch section {
         case .lighting: Text("Lighting")
+        case .buttons: Text("Buttons")
         case .performance: Text("Performance")
         case .image: Text("Image")
         case .advanced: Text("Advanced")
         case .info: Text("Details")
+        }
+    }
+
+    /// Plain string for tooltips.
+    static func sectionName(_ section: ControlSection) -> String {
+        switch section {
+        case .lighting: String(localized: "Lighting")
+        case .buttons: String(localized: "Buttons")
+        case .performance: String(localized: "Performance")
+        case .image: String(localized: "Image")
+        case .advanced: String(localized: "Advanced")
+        case .info: String(localized: "Details")
         }
     }
 
@@ -61,6 +74,14 @@ enum Titles {
         }
     }
 
+    static func direction(_ name: String) -> Text {
+        switch name {
+        case "left_to_right": Text("Left to right")
+        case "right_to_left": Text("Right to left")
+        default: Text(verbatim: humanize(name))
+        }
+    }
+
     static func humanize(_ id: String) -> String {
         let words = id.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ")
         return words.prefix(1).uppercased() + words.dropFirst()
@@ -79,6 +100,7 @@ enum Titles {
     static func symbol(for section: ControlSection) -> String {
         switch section {
         case .lighting: "lightbulb"
+        case .buttons: "computermouse"
         case .performance: "speedometer"
         case .image: "camera.filters"
         case .advanced: "slider.horizontal.3"

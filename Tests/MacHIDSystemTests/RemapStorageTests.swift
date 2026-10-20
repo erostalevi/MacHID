@@ -75,10 +75,8 @@ private func tempURL(_ name: String) -> URL {
 
 @Test func approvalDependsOnTheKey() {
     let macro = Macro(id: "m", name: "M", steps: [.shell("echo hi")])
-    let original = MacroFingerprint.key
-    defer { MacroFingerprint.key = original }
-    let first = MacroFingerprint.of(macro)
-    MacroFingerprint.key = SymmetricKey(data: Data(repeating: 7, count: 32))
-    #expect(MacroFingerprint.of(macro) != first)          // a forged hash without the key does not verify
-    #expect(MacroFingerprint.of(macro).count == 64)
+    let one = SymmetricKey(data: Data(repeating: 1, count: 32)), two = SymmetricKey(data: Data(repeating: 7, count: 32))
+    #expect(MacroFingerprint.of(macro, key: one) == MacroFingerprint.of(macro, key: one))
+    #expect(MacroFingerprint.of(macro, key: one) != MacroFingerprint.of(macro, key: two))   // a hash forged without the key does not verify
+    #expect(MacroFingerprint.of(macro, key: two).count == 64)
 }

@@ -47,10 +47,44 @@
               "spectrum",
               "wave",
               "reactive",
-              "starlight"
-            ]
+              "starlight",
+              "breathing"
+            ],
+            "mode_options": {
+              "wave": {
+                "directions": [
+                  "left_to_right",
+                  "right_to_left"
+                ]
+              },
+              "reactive": {
+                "speed_min": 1,
+                "speed_max": 4,
+                "colors_min": 1,
+                "colors_max": 1
+              },
+              "starlight": {
+                "speed_min": 1,
+                "speed_max": 3,
+                "colors_min": 0,
+                "colors_max": 2
+              },
+              "breathing": {
+                "colors_min": 0,
+                "colors_max": 2
+              }
+            }
           }
         ]
+      }
+    },
+    {
+      "id": "key_lighting",
+      "type": "per_key_lighting",
+      "access": "write_volatile",
+      "parameters": {
+        "rows": 5,
+        "columns": 15
       }
     }
   ],

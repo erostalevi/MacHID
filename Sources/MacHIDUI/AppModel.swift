@@ -19,6 +19,14 @@ public final class AppModel {
         public var lastError: String?
 
         public var definition: DeviceDefinition? { item.definition }
+        public var category: DeviceCategory { item.definition?.category ?? .other }
+
+        /// Sections the device has controls for. Mice and keyboards also get Buttons (software remapping).
+        public var sections: [ControlSection] {
+            ControlSection.allCases.filter { candidate in
+                candidate == .buttons ? (category == .mouse || category == .keyboard) : specs.contains { $0.section == candidate }
+            }
+        }
         public var name: String { item.device.name }
         public var usbId: USBID { item.device.usbId }
     }
@@ -36,6 +44,12 @@ public final class AppModel {
     /// False until the first device scan finishes, so the window can show a loading state instead of "no devices".
     public private(set) var hasScanned = false
     public var selectedSection: ControlSection = .lighting
+    /// Keyboards currently in per-key lighting (the stage paints keys instead of selecting them).
+    public private(set) var perKeyActive: Set<String> = []
+    /// Color the per-key brush paints with.
+    public var brush = MacHIDDomain.RGBColor(r: 120, g: 70, b: 255)
+    /// The key or button picked on the device drawing; the Buttons and Lighting panels act on it.
+    public var selectedInput: String?
     /// Set by the app scene so the delegate and the menu can bring the window forward.
     @ObservationIgnored public var openMainWindow: (() -> Void)?
     /// Called after devices were plugged in or removed (the plugins page re-checks its recommendations).
@@ -62,6 +76,17 @@ public final class AppModel {
     @ObservationIgnored private var alertPolicy = BatteryAlertPolicy()
 
     private static let activeProfilesKey = "activeProfileIDs"
+    public static let defaultDPIStages = [800, 1600, 3200]
+    static func dpiStagesKey(_ deviceID: String) -> String { "dpiStages.\(deviceID)" }
+
+    /// Jumps to the next DPI preset of a device (menu bar "Next DPI").
+    public func cycleDPI(for deviceID: String) {
+        guard let entry = devices.first(where: { $0.id == deviceID }),
+              case .text(let text)? = entry.values["dpi_stages"], let stages = DPIStages(text: text) else { return }
+        var current = 0
+        if case .int(let value)? = entry.values["dpi"] { current = value }
+        set(.int(stages.next(after: current)), capability: "dpi", on: deviceID)
+    }
     public static let lowBatteryAlertsKey = "lowBatteryAlerts"
 
     public init(inventory: DeviceInventory, control: DeviceControl, repository: any ProfileRepository,
@@ -146,7 +171,7 @@ public final class AppModel {
     /// Sections the selected device has controls for, in display order.
     public var availableSections: [ControlSection] {
         guard let device = selectedDevice else { return [] }
-        return ControlSection.allCases.filter { candidate in device.specs.contains { $0.section == candidate } }
+        return device.sections
     }
 
     /// Menu title for the n-th section shortcut.
@@ -155,6 +180,7 @@ public final class AppModel {
         guard sections.indices.contains(index) else { return "Section \(index + 1)" }
         switch sections[index] {
         case .lighting: return "Lighting"
+        case .buttons: return "Buttons"
         case .performance: return "Performance"
         case .image: return "Image"
         case .advanced: return "Advanced"
@@ -212,6 +238,12 @@ public final class AppModel {
     /// Reads every readable capability (and device-reported limits) once, when a device appears.
     public func loadValues(for deviceID: String) async {
         guard let entry = devices.first(where: { $0.id == deviceID }) else { return }
+        for spec in entry.specs {
+            if case .dpiStages = spec.kind {
+                let saved = defaults.string(forKey: Self.dpiStagesKey(deviceID)).flatMap(DPIStages.init(text:))
+                update(deviceID) { $0.values[spec.id] = .text((saved ?? DPIStages(values: Self.defaultDPIStages)!).text) }
+            }
+        }
         for spec in entry.specs where spec.readable {
             do {
                 if case .slider(_, _, _, true) = spec.kind,
@@ -226,6 +258,48 @@ public final class AppModel {
             }
         }
         await checkBatteryAlert(deviceID)
+    }
+
+    // MARK: Per-key lighting
+
+    private func keyLightingSpec(_ entry: DeviceEntry) -> ControlSpec? { entry.specs.first { if case .keyLighting = $0.kind { true } else { false } } }
+
+    public func isPainting(_ entry: DeviceEntry) -> Bool { perKeyActive.contains(entry.id) && selectedSection == .lighting }
+
+    /// Switches a keyboard between its effects and a hand-painted frame. Turning per-key on starts from the last frame,
+    /// or fills every key with the brush color.
+    public func setPerKey(_ on: Bool, for deviceID: String) {
+        guard let entry = devices.first(where: { $0.id == deviceID }), let spec = keyLightingSpec(entry) else { return }
+        if on {
+            perKeyActive.insert(deviceID)
+            if case .keyFrame? = entry.values[spec.id] { set(entry.values[spec.id]!, capability: spec.id, on: deviceID) }
+            else if let layout = KeyboardLayout.layout(forDefinitionID: entry.definition?.id) {
+                set(.keyFrame(layout.frame(filling: brush)), capability: spec.id, on: deviceID)
+            }
+        } else {
+            perKeyActive.remove(deviceID)
+            if let lighting = entry.specs.first(where: { if case .lighting = $0.kind { true } else { false } }), let value = entry.values[lighting.id] {
+                set(value, capability: lighting.id, on: deviceID)
+            }
+        }
+    }
+
+    /// Paints one key with the brush.
+    public func paintKey(_ keyID: String, on deviceID: String) {
+        guard let entry = devices.first(where: { $0.id == deviceID }), let spec = keyLightingSpec(entry),
+              let layout = KeyboardLayout.layout(forDefinitionID: entry.definition?.id), let key = layout.key(id: keyID) else { return }
+        var frame: [KeyColor] = []
+        if case .keyFrame(let current)? = entry.values[spec.id] { frame = current }
+        frame.removeAll { $0.row == key.row && $0.col == key.col }
+        frame.append(KeyColor(row: key.row, col: key.col, color: brush))
+        set(.keyFrame(frame), capability: spec.id, on: deviceID)
+    }
+
+    /// Fills every key (or none, with `nil`) in one color.
+    public func fillKeys(with color: MacHIDDomain.RGBColor?, for deviceID: String) {
+        guard let entry = devices.first(where: { $0.id == deviceID }), let spec = keyLightingSpec(entry),
+              let layout = KeyboardLayout.layout(forDefinitionID: entry.definition?.id) else { return }
+        set(.keyFrame(color.map(layout.frame(filling:)) ?? []), capability: spec.id, on: deviceID)
     }
 
     // MARK: Battery
@@ -295,6 +369,7 @@ public final class AppModel {
     /// slider produces one write instead of dozens.
     public func set(_ value: SettingValue, capability: String, on deviceID: String) {
         update(deviceID) { $0.values[capability] = value }
+        if capability == "dpi_stages", case .text(let text) = value { defaults.set(text, forKey: Self.dpiStagesKey(deviceID)) }
         let key = deviceID + "/" + capability
         pendingWrites[key]?.cancel()
         pendingWrites[key] = Task { [weak self, writeDelay] in

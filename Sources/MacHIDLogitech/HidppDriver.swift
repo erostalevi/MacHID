@@ -85,6 +85,8 @@ public struct HidppDriver: DeviceDriver {
             return .int(1000 / periodMs)
         case "battery":
             return try await readBattery(client)
+        case "onboard_state":
+            return try await readOnboardState(client)
         case "features":
             // Diagnostic: "index:id" for every feature, e.g. "0:0000 1:0001 9:2201".
             let features = try await client.listFeatures()
@@ -104,16 +106,8 @@ public struct HidppDriver: DeviceDriver {
         case ("backlight", .text("off")):
             try await setEffect(Self.disabledEffect, parameters: [], client: client)
         case ("backlight", .effect(let effect)):
-            switch (effect.effect, effect.color) {
-            case ("cycle", _):
-                // libratbag cycle layout: 5 unused bytes, period (BE16 ms), intensity (0 = 100%).
-                try await setEffect(Self.cycleEffect, parameters: [0, 0, 0, 0, 0, 0x13, 0x88, 100], client: client)
-            case ("breathing", let color?):
-                // libratbag breathing layout: color, period (BE16 ms), waveform (0 = default), intensity.
-                try await setEffect(Self.breathingEffect, parameters: [color.r, color.g, color.b, 0x13, 0x88, 0, 100], client: client)
-            case ("breathing", nil): throw DriverError.invalidValue("breathing needs a color")
-            default: throw DriverError.invalidValue("unknown effect '\(effect.effect)'")
-            }
+            let built = try Self.effectParameters(for: effect)
+            try await setEffect(built.id, parameters: built.parameters, client: client)
         case ("polling_rate", .int(let hertz)):
             try await setPollingRate(hertz, client: client)
         case ("device_mode", .int(let mode)):
@@ -124,11 +118,76 @@ public struct HidppDriver: DeviceDriver {
             case .rgbEffects(let index):
                 try await setRGBHostControl(mode == 1, client: client, featureIndex: index)
             }
-        case ("dpi", _), ("backlight", _), ("device_mode", _), ("polling_rate", _):
+        case ("dpi_stages", .text(let text)):
+            try await validateDPIStages(text, client: client)
+        case ("dpi", _), ("backlight", _), ("device_mode", _), ("polling_rate", _), ("dpi_stages", _):
             throw DriverError.invalidValue("wrong value type for '\(capability.id)'")
         default:
             throw DriverError.unsupportedCapability(capability.id)
         }
+    }
+
+    // MARK: Lighting parameters (pure)
+
+    static let periodRange = 1...0xFFFF
+    static let defaultPeriod = 5000
+
+    private static func scaled(_ color: RGBColor, brightness: Int) -> [UInt8] {
+        [color.r, color.g, color.b].map { UInt8((Int($0) * brightness + 50) / 100) }
+    }
+
+    /// Effect id and the effect-specific bytes for 0x8071 / 0x8070 (libratbag `hidpp20_internal_led` layouts, which
+    /// match Solaar's LEDEffects offsets): fixed = color; cycle = 5 unused, period BE16, intensity;
+    /// breathing = color, period BE16, waveform, intensity. Static has no intensity field on the wire, so its
+    /// brightness scales the color on the host.
+    static func effectParameters(for effect: LightingEffect) throws -> (id: UInt16, parameters: [UInt8]) {
+        let brightness = effect.brightness ?? 100
+        guard (1...100).contains(brightness) else { throw DriverError.invalidValue("brightness must be 1...100") }
+        let period = effect.period ?? defaultPeriod
+        guard periodRange.contains(period) else { throw DriverError.invalidValue("period must be 1...65535 ms") }
+        let periodBytes = [UInt8(period >> 8), UInt8(period & 0xFF)]
+        switch effect.effect {
+        case "static":
+            guard let color = effect.color else { throw DriverError.invalidValue("static needs a color") }
+            return (fixedEffect, scaled(color, brightness: brightness))
+        case "off":
+            return (disabledEffect, [])
+        case "cycle":
+            return (cycleEffect, [0, 0, 0, 0, 0] + periodBytes + [UInt8(brightness)])
+        case "breathing":
+            guard let color = effect.color else { throw DriverError.invalidValue("breathing needs a color") }
+            let waveform = effect.waveform ?? 0
+            guard (0...6).contains(waveform) else { throw DriverError.invalidValue("waveform must be 0...6") }
+            return (breathingEffect, [color.r, color.g, color.b] + periodBytes + [UInt8(waveform), UInt8(brightness)])
+        default:
+            throw DriverError.invalidValue("unknown effect '\(effect.effect)'")
+        }
+    }
+
+    // MARK: DPI stages (host side)
+
+    /// DPI stages live in the profile and the app cycles them in software (the onboard stage table is
+    /// persistent memory and is never written). The driver only checks every stage against the sensor's list.
+    private func validateDPIStages(_ text: String, client: HidppClient) async throws {
+        guard let stages = DPIStages(text: text) else {
+            throw DriverError.invalidValue("dpi_stages needs 1 to 5 comma separated DPI values")
+        }
+        let index = try await client.featureIndex(for: HidppFeature.adjustableDPI)
+        let list = HidppDPIList.parse(try await client.request(featureIndex: index, function: 1, parameters: [0]))
+        for stage in stages.values where !list.contains(stage) {
+            throw DriverError.invalidValue("\(stage) DPI is not supported by this sensor")
+        }
+    }
+
+    // MARK: Onboard profiles (read only)
+
+    /// 0x8100 read-only inspection: function 2 = GetOnboardMode (1 onboard, 2 host), function 4 = GetCurrentProfile
+    /// (profile index in the second byte); libratbag CMD_ONBOARD_PROFILES_GET_ONBOARD_MODE 0x20 / GET_CURRENT_PROFILE 0x40.
+    private func readOnboardState(_ client: HidppClient) async throws -> SettingValue {
+        let index = try await client.featureIndex(for: HidppFeature.onboardProfiles)
+        let mode = try await client.request(featureIndex: index, function: 2)[0]
+        let profile = try await client.request(featureIndex: index, function: 4)[1]
+        return .text("mode=\(mode == 2 ? "host" : mode == 1 ? "onboard" : String(mode)) profile=\(profile)")
     }
 
     // MARK: Battery

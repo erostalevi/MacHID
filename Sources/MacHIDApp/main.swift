@@ -61,8 +61,7 @@ struct MacHIDApp: App {
             MainWindowView(model: model, remap: remap)
         }
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 760, height: 660)
+        .windowResizability(.contentSize)
 
         Window("Settings", id: "settings") {
             SettingsView(model: model, remap: remap, plugins: plugins, updater: updater)
@@ -71,7 +70,7 @@ struct MacHIDApp: App {
         .defaultSize(width: 600, height: 620)
         .commands {
             CommandMenu("Section") {
-                ForEach(0..<5, id: \.self) { index in
+                ForEach(0..<6, id: \.self) { index in
                     Button(model.sectionTitle(at: index)) {
                         withAnimation(.snappy) { model.selectSection(at: index) }
                     }

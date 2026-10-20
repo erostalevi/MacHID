@@ -10,7 +10,9 @@ public enum MacroFingerprint {
     /// Replaced in tests; the default reads (or creates) the Keychain key.
     nonisolated(unsafe) public static var key: SymmetricKey = ApprovalKeyStore.loadOrCreate()
 
-    public static func of(_ macro: Macro) -> String {
+    public static func of(_ macro: Macro) -> String { of(macro, key: key) }
+
+    static func of(_ macro: Macro, key: SymmetricKey) -> String {
         struct Canonical: Encodable { let steps: [MacroStep]; let repeatCount: Int }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
