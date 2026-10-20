@@ -105,11 +105,40 @@ private func installer(_ archive: URL, directory: URL = temp()) -> PluginInstall
         await #expect(throws: PluginError.registryMismatch("id")) { try await installer(archive2).install(entry(hash: hash2)) }
     }
 
-    @Test func codePluginsAreNotInstalled() async throws {
+    @Test func codePluginsInstallTheirScriptAndAreFlagged() async throws {
         var fixture = PluginFixture()
         fixture.manifest["driver"] = "driver.js"
+        fixture.manifest["permissions"] = ["transport": "hid", "report_ids": [1], "writes": "volatile"]
+        fixture.definition["driver"] = "plugin:acme-mouse"
+        fixture.extraFiles["driver.js"] = "function read(c) { return 1 }"
         let (archive, hash) = try fixture.pack()
-        await #expect(throws: PluginError.codePluginsNotSupported) { try await installer(archive).install(entry(hash: hash)) }
+        let installerDirectory = temp()
+        let plugin = try await installer(archive, directory: installerDirectory).install(entry(hash: hash))
+        #expect(plugin.hasCode)
+        #expect(fm.fileExists(atPath: installerDirectory.appendingPathComponent("acme-mouse/\(entry(hash: hash).ref)/driver.js").path))
+    }
+
+    @Test func codePluginScriptsAreChecked() async throws {
+        for (content, label) in [("function read(){}\u{0}", "NUL"), (String(repeating: "a", count: 128 * 1024 + 1), "size")] {
+            var fixture = PluginFixture()
+            fixture.manifest["driver"] = "driver.js"
+            fixture.definition["driver"] = "plugin:acme-mouse"
+            fixture.extraFiles["driver.js"] = content
+            let (archive, hash) = try fixture.pack()
+            do { _ = try await installer(archive).install(entry(hash: hash)); Issue.record("\(label) should have failed") } catch is PluginError {}
+        }
+        var missing = PluginFixture()
+        missing.manifest["driver"] = "driver.js"
+        missing.definition["driver"] = "plugin:acme-mouse"
+        let (archive, hash) = try missing.pack()
+        do { _ = try await installer(archive).install(entry(hash: hash)); Issue.record("missing script should have failed") } catch is PluginError {}
+    }
+
+    @Test func dataPluginsCannotClaimACodeDriver() async throws {
+        var fixture = PluginFixture()
+        fixture.definition["driver"] = "plugin:acme-mouse"
+        let (archive, hash) = try fixture.pack()
+        await #expect(throws: PluginError.unknownDriver("plugin:acme-mouse")) { try await installer(archive).install(entry(hash: hash)) }
     }
 
     @Test func invalidManifestsAreExplained() async throws {

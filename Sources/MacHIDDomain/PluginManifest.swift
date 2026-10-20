@@ -32,7 +32,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     public let author: String
     public let coreAPI: APIRange
     public let devices: [USBID]
-    /// Entry script of a code driver. Nil for data-only plugins, the only kind this version can install.
+    /// Entry script (JavaScript) of a code driver, run in the sandbox host. Nil for data-only plugins.
     public let driver: String?
     public let permissions: PluginPermissions
     /// Definition files, relative to the plugin root. Default: `devices/*.json`.
@@ -81,6 +81,10 @@ extension PluginManifest {
         if coreAPI.min < 1 || coreAPI.min > coreAPI.max { fail("invalid core_api range") }
         else if !coreAPI.contains(coreAPIVersion) { fail("needs core API \(coreAPI.min)-\(coreAPI.max); this MacHID has \(coreAPIVersion)") }
         if permissions.writes == .persistent { fail("writes to device memory are not allowed yet") }
+        if let driver {
+            if !Self.isSafeRelativePath(driver) || !driver.hasSuffix(".js") { fail("driver '\(driver)' must be a relative .js path inside the plugin") }
+            if permissions.transport != .hid { fail("code plugins can only use the hid transport") }
+        }
         if let definitions {
             if definitions.count > Self.maxDefinitionFiles { fail("too many definition files") }
             for path in definitions where !Self.isSafeRelativePath(path) || !path.hasSuffix(".json") {

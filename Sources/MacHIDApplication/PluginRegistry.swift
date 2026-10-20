@@ -147,6 +147,8 @@ public enum PluginPlanner {
     /// Only reviewed plugins may update by themselves, and only when permissions and license did not change
     /// (checked on the manifest once it has been downloaded). Returns the reason to ask the user, or nil.
     public static func autoUpdateBlocker(for update: PluginUpdate, newManifest manifest: PluginManifest) -> String? {
+        // Code plugins never update by themselves, reviewed or not: a new script is new code that can talk to the device.
+        if update.installed.hasCode || !manifest.isDataOnly { return "it runs code, so every update needs your approval" }
         if update.entry.review != .reviewed { return "it is not a reviewed plugin" }
         if manifest.permissions != update.installed.permissions { return "its permissions changed" }
         if manifest.license != update.installed.license { return "its license changed" }

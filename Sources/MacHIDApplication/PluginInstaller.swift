@@ -26,9 +26,12 @@ public struct InstalledPlugin: Codable, Equatable, Sendable, Identifiable {
     /// Definition files inside the plugin folder, relative to it.
     public var definitionFiles: [String]
     public var installedAt: Date
+    /// True when the plugin carries a script (`driver.js` in its folder) that runs in the sandbox host.
+    public var hasCode: Bool
 
     public init(id: String, name: String, version: String, ref: String, review: ReviewLevel, license: String,
-                devices: [USBID], permissions: PluginPermissions, definitionFiles: [String], installedAt: Date) {
+                devices: [USBID], permissions: PluginPermissions, definitionFiles: [String], installedAt: Date, hasCode: Bool = false) {
+        self.hasCode = hasCode
         self.id = id
         self.name = name
         self.version = version
@@ -42,6 +45,23 @@ public struct InstalledPlugin: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+extension InstalledPlugin {
+    enum CodingKeys: String, CodingKey {
+        case id, name, version, ref, review, license, devices, permissions, definitionFiles, installedAt, hasCode
+    }
+
+    /// Lists written before code plugins existed have no `hasCode`.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(String.self, forKey: .id), name: try c.decode(String.self, forKey: .name),
+                  version: try c.decode(String.self, forKey: .version), ref: try c.decode(String.self, forKey: .ref),
+                  review: try c.decode(ReviewLevel.self, forKey: .review), license: try c.decode(String.self, forKey: .license),
+                  devices: try c.decode([USBID].self, forKey: .devices), permissions: try c.decode(PluginPermissions.self, forKey: .permissions),
+                  definitionFiles: try c.decode([String].self, forKey: .definitionFiles), installedAt: try c.decode(Date.self, forKey: .installedAt),
+                  hasCode: try c.decodeIfPresent(Bool.self, forKey: .hasCode) ?? false)
+    }
+}
+
 public enum PluginError: Error, Equatable, CustomStringConvertible {
     case download(String)
     case unsafeArchive(String)
@@ -50,6 +70,7 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
     case invalidManifest([String])
     case registryMismatch(String)
     case codePluginsNotSupported
+    case invalidScript(String)
     case invalidDefinition(file: String, reason: String)
     case unknownDriver(String)
     case tooLarge(String)
@@ -65,6 +86,7 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
         case .invalidManifest(let issues): "invalid manifest: \(issues.joined(separator: "; "))"
         case .registryMismatch(let what): "the plugin disagrees with its registry entry: \(what)"
         case .codePluginsNotSupported: "plugins with code drivers need a newer MacHID"
+        case .invalidScript(let why): "invalid plugin script: \(why)"
         case .invalidDefinition(let file, let reason): "invalid definition \(file): \(reason)"
         case .unknownDriver(let name): "unknown driver family '\(name)'"
         case .tooLarge(let what): "\(what) is too large"
@@ -81,6 +103,9 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
 public actor PluginInstaller {
     public static let maxManifestBytes = 64 * 1024
     public static let maxDefinitionBytes = 256 * 1024
+    public static let maxScriptBytes = 128 * 1024
+    /// Name of the stored script inside the plugin folder, whatever the manifest called it.
+    public static let storedScriptName = "driver.js"
 
     private let fetcher: any PluginFetcher
     private let extractor: any ArchiveExtractor
@@ -116,11 +141,12 @@ public actor PluginInstaller {
         let root = try pluginRoot(in: staging)
         let manifest = try loadManifest(in: root, entry: entry)
         let definitions = try loadDefinitions(in: root, manifest: manifest)
+        let script = try loadScript(in: root, manifest: manifest)
         if let reason = approve?(manifest) { throw PluginError.notApproved(reason) }
 
         let destination = directory.appendingPathComponent(entry.id, isDirectory: true).appendingPathComponent(entry.ref, isDirectory: true)
         do {
-            try store(manifestIn: root, files: definitions.flatMap { [$0.path] + ($0.definition.artwork.map { [$0] } ?? []) }, into: destination)
+            try store(manifestIn: root, files: definitions.flatMap { [$0.path] + ($0.definition.artwork.map { [$0] } ?? []) }, script: script, into: destination)
         } catch {
             throw PluginError.storage("\(error)")
         }
@@ -128,7 +154,7 @@ public actor PluginInstaller {
         removeOtherVersions(of: entry.id, keeping: entry.ref)
         return InstalledPlugin(id: entry.id, name: manifest.name, version: manifest.version, ref: entry.ref, review: entry.review,
                                license: manifest.license, devices: manifest.devices, permissions: manifest.permissions,
-                               definitionFiles: definitions.map(\.path), installedAt: now())
+                               definitionFiles: definitions.map(\.path), installedAt: now(), hasCode: script != nil)
     }
 
     /// Where an installed plugin's files live.
@@ -164,8 +190,20 @@ public actor PluginInstaller {
         guard manifest.license == entry.license else { throw PluginError.registryMismatch("license") }
         guard Set(manifest.devices) == Set(entry.devices) else { throw PluginError.registryMismatch("devices") }
         guard manifest.coreAPI == entry.coreApi else { throw PluginError.registryMismatch("core_api") }
-        guard manifest.isDataOnly else { throw PluginError.codePluginsNotSupported }
         return manifest
+    }
+
+    /// The entry script of a code plugin: a regular file, small, UTF-8 text without NUL bytes.
+    private func loadScript(in root: URL, manifest: PluginManifest) throws -> Data? {
+        guard let driver = manifest.driver else { return nil }
+        guard PluginManifest.isSafeRelativePath(driver), driver.hasSuffix(".js") else { throw PluginError.invalidScript("path must be a relative .js file") }
+        let url = root.appendingPathComponent(driver)
+        let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+        guard values?.isRegularFile == true, values?.isSymbolicLink != true else { throw PluginError.invalidScript("\(driver) is not a regular file") }
+        guard (values?.fileSize ?? 0) <= Self.maxScriptBytes else { throw PluginError.tooLarge(driver) }
+        guard let data = try? Data(contentsOf: url), data.count <= Self.maxScriptBytes else { throw PluginError.invalidScript("cannot read \(driver)") }
+        guard !data.contains(0), String(data: data, encoding: .utf8) != nil else { throw PluginError.invalidScript("\(driver) must be UTF-8 text") }
+        return data
     }
 
     private func loadDefinitions(in root: URL, manifest: PluginManifest) throws -> [(path: String, definition: DeviceDefinition)] {
@@ -190,7 +228,9 @@ public actor PluginInstaller {
             do {
                 let definition = try JSONDecoder().decode(DeviceDefinition.self, from: Data(contentsOf: url))
                 try definition.validate()
-                guard allowedDrivers.contains(definition.driver) else { throw PluginError.unknownDriver(definition.driver) }
+                // Code plugins drive their devices with their own script; the family name is fixed to the plugin id.
+                let ownDriver = manifest.driver != nil && definition.driver == "plugin:\(manifest.id)"
+                guard ownDriver || allowedDrivers.contains(definition.driver) else { throw PluginError.unknownDriver(definition.driver) }
                 guard seenIDs.insert(definition.id).inserted else { throw PluginError.invalidDefinition(file: path, reason: "duplicate definition id") }
                 if let stray = definition.usbIds.first(where: { !manifest.devices.contains($0) }) {
                     throw PluginError.invalidDefinition(file: path, reason: "uses \(stray), which the manifest does not declare")
@@ -216,7 +256,7 @@ public actor PluginInstaller {
         return result
     }
 
-    private func store(manifestIn root: URL, files: [String], into destination: URL) throws {
+    private func store(manifestIn root: URL, files: [String], script: Data?, into destination: URL) throws {
         let parent = destination.deletingLastPathComponent()
         try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
         let temporary = parent.appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)
@@ -228,6 +268,7 @@ public actor PluginInstaller {
                 try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try fileManager.copyItem(at: root.appendingPathComponent(path), to: target)
             }
+            if let script { try script.write(to: temporary.appendingPathComponent(Self.storedScriptName)) }
             if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
             try fileManager.moveItem(at: temporary, to: destination)
         } catch {
