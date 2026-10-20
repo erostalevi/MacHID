@@ -32,7 +32,8 @@ import MacHIDDomain
         #expect(spec(.info, access: .read)?.kind == .readout)
         #expect(spec(.deviceMode)?.kind == .hostControl)
         #expect(spec(.deviceMode)?.section == .advanced)
-        #expect(spec(.battery, access: .read) == nil)
+        #expect(spec(.battery, access: .read)?.kind == .battery)
+        #expect(spec(.battery, access: .read)?.section == .info)
         #expect(spec(.keyRemap) == nil)
     }
 

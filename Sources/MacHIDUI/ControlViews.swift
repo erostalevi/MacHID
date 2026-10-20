@@ -11,11 +11,14 @@ struct ControlRow: View {
         VStack(alignment: .leading, spacing: 8) {
             label
             control
-                .disabled(!spec.isWritable && spec.kind != .readout || blockedByAutomaticMode)
+                .disabled(!spec.isWritable && !isDisplayOnly || blockedByAutomaticMode)
         }
-        .opacity((spec.isWritable || spec.kind == .readout) && !blockedByAutomaticMode ? 1 : 0.5)
+        .opacity((spec.isWritable || isDisplayOnly) && !blockedByAutomaticMode ? 1 : 0.5)
         .motion(\.snappy, value: blockedByAutomaticMode)
     }
+
+    /// Readouts and the battery indicator are read-only but not "unavailable": they are shown at full strength.
+    private var isDisplayOnly: Bool { spec.kind == .readout || spec.kind == .battery }
 
     private var label: some View {
         HStack {
@@ -55,6 +58,12 @@ struct ControlRow: View {
                 Text("Keep lighting under MacHID control").font(.callout)
             }
             .toggleStyle(.switch)
+        case .battery:
+            if case .battery(let percent, let charging)? = device.values[spec.id] {
+                BatteryBadge(percent: percent, charging: charging)
+            } else {
+                Text("Not available").font(.callout).foregroundStyle(.tertiary)
+            }
         case .readout:
             if case .text(let text)? = device.values[spec.id] {
                 Text(verbatim: text).font(.callout).foregroundStyle(.primary).textSelection(.enabled)

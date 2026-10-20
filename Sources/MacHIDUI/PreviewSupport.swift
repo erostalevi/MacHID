@@ -91,6 +91,7 @@ extension AppModel {
                 case .lighting: entry.values[spec.id] = .color(MacHIDDomain.RGBColor(r: 120, g: 70, b: 255))
                 case .hostControl: entry.values[spec.id] = .int(0)
                 case .readout: entry.values[spec.id] = .text("v1.12")
+                case .battery: entry.values[spec.id] = .battery(percent: 64, charging: false)
                 }
             }
             entries.append(entry)
