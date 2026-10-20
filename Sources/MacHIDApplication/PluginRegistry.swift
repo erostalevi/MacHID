@@ -36,6 +36,7 @@ public enum RegistryError: Error, Equatable, CustomStringConvertible {
     case network(String)
     case badSignature
     case invalid([String])
+    case stale(String)
 
     public var description: String {
         switch self {
@@ -43,6 +44,7 @@ public enum RegistryError: Error, Equatable, CustomStringConvertible {
         case .network(let why): "could not reach the plugin registry: \(why)"
         case .badSignature: "the plugin registry failed its signature check and was ignored"
         case .invalid(let issues): "the plugin registry is invalid: \(issues.joined(separator: "; "))"
+        case .stale(let why): "the plugin registry is out of date and was ignored: \(why)"
         }
     }
 }
@@ -55,12 +57,14 @@ public actor RegistryService {
     private let source: any RegistrySource
     private let verifier: (any RegistryVerifier)?
     private let cache: any RegistryCache
+    private let now: @Sendable () -> Date
 
     /// - Parameter verifier: nil when the build has no signing key; refreshing then fails instead of trusting anything.
-    public init(source: any RegistrySource, verifier: (any RegistryVerifier)?, cache: any RegistryCache) {
+    public init(source: any RegistrySource, verifier: (any RegistryVerifier)?, cache: any RegistryCache, now: @escaping @Sendable () -> Date = { Date() }) {
         self.source = source
         self.verifier = verifier
         self.cache = cache
+        self.now = now
     }
 
     /// The last verified registry, re-checked against its signature.
@@ -75,9 +79,21 @@ public actor RegistryService {
         let snapshot: RegistrySnapshot
         do { snapshot = try await source.fetchLatest() } catch { throw RegistryError.network("\(error)") }
         let registry = try Self.accept(snapshot, verifier: verifier)
+        try Self.checkFreshness(registry, previous: await cached(), now: now())
         try? await cache.save(snapshot)
         return registry
     }
+
+    /// A list must be stamped, newer than the last one accepted, and not too old.
+    static func checkFreshness(_ registry: Registry, previous: Registry?, now: Date) throws {
+        guard let sequence = registry.sequence, let issued = registry.issuedAt.flatMap({ ISO8601DateFormatter().date(from: $0) }) else {
+            throw RegistryError.stale("it carries no sequence number or issue date")
+        }
+        if let known = previous?.sequence, sequence < known { throw RegistryError.stale("sequence \(sequence) is older than the \(known) already seen") }
+        if now.timeIntervalSince(issued) > maxAge { throw RegistryError.stale("it was issued more than 45 days ago") }
+    }
+
+    static let maxAge: TimeInterval = 45 * 24 * 3600
 
     static func accept(_ snapshot: RegistrySnapshot, verifier: any RegistryVerifier) throws -> Registry {
         guard verifier.isValid(signature: snapshot.signature, for: snapshot.data) else { throw RegistryError.badSignature }
@@ -120,6 +136,12 @@ public enum PluginPlanner {
                   entry.coreApi.contains(coreAPIVersion) else { return nil }
             return PluginUpdate(installed: plugin, entry: entry)
         }
+    }
+
+    /// A reason to refuse when the new version is older than the installed one (a downgrade is never applied).
+    public static func downgradeBlocker(installed: InstalledPlugin?, newManifest: PluginManifest) -> String? {
+        guard let installed, let current = SemanticVersion(installed.version), let next = SemanticVersion(newManifest.version) else { return nil }
+        return next < current ? "version \(next) is older than the installed \(current)" : nil
     }
 
     /// Only reviewed plugins may update by themselves, and only when permissions and license did not change

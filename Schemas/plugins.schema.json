@@ -2,33 +2,101 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "MacHID plugin registry (plugins.json)",
   "type": "object",
-  "required": ["schema_version", "plugins"],
+  "required": [
+    "schema_version",
+    "plugins"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": {
+      "const": 1
+    },
     "plugins": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "repo", "ref", "manifest_sha256", "license", "category", "devices", "core_api", "review"],
+        "required": [
+          "id",
+          "repo",
+          "ref",
+          "manifest_sha256",
+          "license",
+          "category",
+          "devices",
+          "core_api",
+          "review"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$" },
-          "repo": { "type": "string", "pattern": "^https://github\\.com/[^/]+/[^/]+$" },
-          "ref": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-          "manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-          "license": { "type": "string" },
-          "category": { "enum": ["mouse", "keyboard", "camera", "headset", "other"] },
-          "devices": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[0-9a-f]{4}:[0-9a-f]{4}$" } },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+          },
+          "repo": {
+            "type": "string",
+            "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "manifest_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "license": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "mouse",
+              "keyboard",
+              "camera",
+              "headset",
+              "other"
+            ]
+          },
+          "devices": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{4}:[0-9a-f]{4}$"
+            }
+          },
           "core_api": {
             "type": "object",
-            "required": ["min", "max"],
+            "required": [
+              "min",
+              "max"
+            ],
             "additionalProperties": false,
-            "properties": { "min": { "type": "integer", "minimum": 1 }, "max": { "type": "integer", "minimum": 1 } }
+            "properties": {
+              "min": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
           },
-          "review": { "enum": ["reviewed", "community"] }
+          "review": {
+            "enum": [
+              "reviewed",
+              "community"
+            ]
+          }
         }
       }
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "issued_at": {
+      "type": "string"
     }
   }
 }

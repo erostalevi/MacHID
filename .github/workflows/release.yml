@@ -27,9 +27,10 @@ jobs:
     permissions:
       contents: write
     env:
+      HAVE_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
       HAVE_SIGNING_SECRETS: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 != '' && secrets.DEVELOPER_ID_CERT_PASSWORD != '' && secrets.DEVELOPER_ID_IDENTITY != '' && secrets.NOTARY_API_KEY_P8_BASE64 != '' && secrets.NOTARY_API_KEY_ID != '' && secrets.NOTARY_API_ISSUER_ID != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -64,6 +65,15 @@ jobs:
         if: env.HAVE_SIGNING_SECRETS != 'true'
         run: echo "::notice::Built and tested only. Add the signing secrets to the 'release' environment to publish a release (see docs/RELEASE.md)."
 
+      - name: Build the app bundle (ad hoc, no secrets in this step)
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
+        env:
+          REGISTRY_PUBLIC_KEY: ${{ vars.REGISTRY_PUBLIC_KEY }}
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+        run: |
+          export APP_VERSION="${{ steps.version.outputs.version }}" BUILD_NUMBER="$(git rev-list --count HEAD)"
+          OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
+
       - name: Import signing certificate
         if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
         env:
@@ -76,7 +86,7 @@ jobs:
           security set-keychain-settings -lut 21600 "$keychain"
           security unlock-keychain -p "$keychain_password" "$keychain"
           echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -t cert -f pkcs12 -k "$keychain"
           rm -f "$RUNNER_TEMP/cert.p12"
           security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain"
           security list-keychains -d user -s "$keychain" login.keychain-db
@@ -100,7 +110,7 @@ jobs:
           rm -f "$RUNNER_TEMP/notary.p8"
           rm dist/machid
 
-      - name: Build, sign and notarize the app (DMG)
+      - name: Sign and notarize the app (DMG)
         if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
         env:
           SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
@@ -108,11 +118,9 @@ jobs:
           NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
           NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
         run: |
+          # Only signing tools run here: the build already happened in a step without these secrets.
           version="${{ steps.version.outputs.version }}"
-          export REGISTRY_PUBLIC_KEY="${{ vars.REGISTRY_PUBLIC_KEY }}" SPARKLE_PUBLIC_KEY="${{ vars.SPARKLE_PUBLIC_KEY }}"
-          # The app's version is the release version; Sparkle compares the build number, which only goes up.
-          export APP_VERSION="$version" BUILD_NUMBER="$(git rev-list --count HEAD)"
-          OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
+          scripts/sign-app.sh "$RUNNER_TEMP/app/MacHID.app" "$SIGN_IDENTITY"
           mkdir -p "$RUNNER_TEMP/dmg" dist
           cp -R "$RUNNER_TEMP/app/MacHID.app" "$RUNNER_TEMP/dmg/"
           ln -s /Applications "$RUNNER_TEMP/dmg/Applications"
@@ -126,7 +134,7 @@ jobs:
           (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS)
 
       - name: Generate the update feed (appcast.xml)
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true' && env.SPARKLE_ED_PRIVATE_KEY != ''
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true' && env.HAVE_SPARKLE == 'true'
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: |

@@ -16,15 +16,25 @@ public struct TarExtractor: ArchiveExtractor {
     public init() {}
 
     public func extract(_ archive: URL, into directory: URL) throws {
-        let listing = try run(["-tzf", archive.path])
-        let entries = listing.split(separator: "\n").map(String.init)
-        guard entries.count <= Self.maxEntries else { throw Failure("too many files") }
-        for entry in entries {
-            let parts = entry.split(separator: "/", omittingEmptySubsequences: true)
-            if entry.hasPrefix("/") || parts.contains("..") || entry.contains("\0") { throw Failure("unsafe path '\(entry)'") }
+        // List first (verbose, to get sizes): a small archive can unpack to gigabytes, so the total is checked before
+        // anything is written.
+        let listing = try run(["-tvzf", archive.path])
+        let lines = listing.split(separator: "\n").map(String.init)
+        guard lines.count <= Self.maxEntries else { throw Failure("too many files") }
+        var declared = 0
+        for line in lines {
+            let fields = line.split(separator: " ", maxSplits: 8, omittingEmptySubsequences: true)
+            guard fields.count == 9, let size = Int(fields[4]), let kind = fields[0].first else { throw Failure("unreadable archive listing") }
+            guard kind == "-" || kind == "d" else { throw Failure("contains a link or special file") }
+            let name = String(fields[8])
+            let parts = name.split(separator: "/", omittingEmptySubsequences: true)
+            if name.hasPrefix("/") || parts.contains("..") || name.contains("\0") { throw Failure("unsafe path '\(name)'") }
+            declared += size
+            if declared > Self.maxTotalBytes { throw Failure("unpacks to too much data") }
         }
         _ = try run(["-xzf", archive.path, "-C", directory.path, "--no-same-owner"])
 
+        // Second layer: check what was really written.
         var total = 0
         let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey])
         while let url = enumerator?.nextObject() as? URL {
@@ -45,12 +55,11 @@ public struct TarExtractor: ArchiveExtractor {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
         process.arguments = arguments
-        let output = Pipe(), errors = Pipe()
+        let output = Pipe()
         process.standardOutput = output
-        process.standardError = errors
+        process.standardError = FileHandle.nullDevice      // never left to fill up while we read stdout
         try process.run()
         let data = output.fileHandleForReading.readDataToEndOfFile()
-        _ = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw Failure("tar failed (status \(process.terminationStatus))") }
         return String(decoding: data, as: UTF8.self)

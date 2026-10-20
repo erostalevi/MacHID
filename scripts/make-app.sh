@@ -73,15 +73,5 @@ ${UPDATE_PLIST}
 </plist>
 PLIST
 
-# Sign from the inside out: Sparkle's helpers, then the framework, then the app.
-sign() {
-  if [ "$IDENTITY" = "-" ]; then codesign --force --sign - --timestamp=none "$@"
-  else codesign --force --sign "$IDENTITY" --options runtime --timestamp "$@"; fi
-}
-SP="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
-for item in "$SP"/XPCServices/*.xpc "$SP/Autoupdate" "$SP/Updater.app" "$APP/Contents/Frameworks/Sparkle.framework"; do
-  [ -e "$item" ] && sign "$item"
-done
-sign "$APP"
-codesign --verify --strict --deep "$APP"
+"$ROOT/scripts/sign-app.sh" "$APP" "$IDENTITY"
 echo "Built $APP"

@@ -14,7 +14,12 @@ private func entry(id: String = "acme", ref: String = goodRef, review: ReviewLev
                   category: .mouse, devices: devices ?? [usb], coreApi: core, review: review)
 }
 
+private func stamp(_ registry: Registry, sequence: Int = 5, issued: Date = Date()) -> Registry {
+    Registry(plugins: registry.plugins, sequence: sequence, issuedAt: ISO8601DateFormatter().string(from: issued))
+}
+
 private func signed(_ registry: Registry, with key: Curve25519.Signing.PrivateKey) throws -> RegistrySnapshot {
+    let registry = registry.sequence == nil ? stamp(registry) : registry
     let data = try JSONEncoder().encode(registry)
     return RegistrySnapshot(data: data, signature: try key.signature(for: data))
 }
@@ -44,9 +49,9 @@ private func service(_ snapshot: RegistrySnapshot?, key: Curve25519.Signing.Priv
         let cache = MemoryCache()
         let registry = Registry(plugins: [entry()])
         let service = service(try signed(registry, with: key), key: key, cache: cache)
-        #expect(try await service.refresh() == registry)
+        #expect(try await service.refresh().plugins == registry.plugins)
         #expect(await cache.stored != nil)
-        #expect(await service.cached() == registry)
+        #expect(await service.cached()?.plugins == registry.plugins)
     }
 
     @Test func aWorkflowSignatureVerifiesWithOurKey() throws {
@@ -92,7 +97,24 @@ private func service(_ snapshot: RegistrySnapshot?, key: Curve25519.Signing.Priv
         _ = try await service(try signed(registry, with: key), key: key, cache: cache).refresh()
         let offline = service(nil, key: key, cache: cache)
         await #expect(throws: RegistryError.self) { try await offline.refresh() }
-        #expect(await offline.cached() == registry)
+        #expect(await offline.cached()?.plugins == registry.plugins)
+    }
+
+    @Test func staleUnstampedAndReplayedListsAreRefused() async throws {
+        let key = Curve25519.Signing.PrivateKey()
+        let cache = MemoryCache()
+        let current = try signed(stamp(Registry(plugins: [entry()]), sequence: 10), with: key)
+        _ = try await service(current, key: key, cache: cache).refresh()
+        // An older, validly signed list (sequence 9) must not replace sequence 10.
+        let replay = try signed(stamp(Registry(plugins: [entry(id: "old")]), sequence: 9), with: key)
+        await #expect(throws: RegistryError.self) { try await service(replay, key: key, cache: cache).refresh() }
+        #expect(await service(nil, key: key, cache: cache).cached()?.plugins.map(\.id) == ["acme"])
+        // Too old, and no stamp at all.
+        let ancient = try signed(stamp(Registry(plugins: [entry()]), sequence: 11, issued: Date().addingTimeInterval(-60 * 24 * 3600)), with: key)
+        await #expect(throws: RegistryError.self) { try await service(ancient, key: key, cache: MemoryCache()).refresh() }
+        let data = try JSONEncoder().encode(Registry(plugins: [entry()]))
+        let bare = RegistrySnapshot(data: data, signature: try key.signature(for: data))
+        await #expect(throws: RegistryError.self) { try await service(bare, key: key, cache: MemoryCache()).refresh() }
     }
 
     @Test func aTamperedCacheIsIgnored() async throws {

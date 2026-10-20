@@ -133,9 +133,10 @@ public final class PluginsModel {
         busy.insert(update.entry.id)
         defer { busy.remove(update.entry.id) }
         do {
-            var gate: (@Sendable (PluginManifest) -> String?)?
-            if !approved {
-                gate = { @Sendable manifest in PluginPlanner.autoUpdateBlocker(for: update, newManifest: manifest) }
+            // A downgrade is never applied, approved or not; permission or license changes need approval.
+            let gate: @Sendable (PluginManifest) -> String? = { @Sendable manifest in
+                if let reason = PluginPlanner.downgradeBlocker(installed: update.installed, newManifest: manifest) { return reason }
+                return approved ? nil : PluginPlanner.autoUpdateBlocker(for: update, newManifest: manifest)
             }
             let plugin = try await installer.install(update.entry, approve: gate)
             installed.removeAll { $0.id == plugin.id }

@@ -53,7 +53,7 @@ private actor FakeSource: RegistrySource {
     init(_ registry: Registry) { self.registry = registry }
     func set(_ registry: Registry) { self.registry = registry }
     func fetchLatest() async throws -> RegistrySnapshot {
-        RegistrySnapshot(data: try JSONEncoder().encode(registry), signature: Data([1]))
+        RegistrySnapshot(data: try JSONEncoder().encode(Registry(plugins: registry.plugins, sequence: 1, issuedAt: ISO8601DateFormatter().string(from: Date()))), signature: Data([1]))
     }
 }
 

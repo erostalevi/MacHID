@@ -41,9 +41,17 @@ public struct RemapEngine: Sendable {
 
     public init(config: RemapConfig = RemapConfig()) { self.config = config }
 
-    public mutating func update(config: RemapConfig) {
+    /// Replaces the rules. Presses that were remapped and are still held get their release sent now, because the
+    /// physical release will no longer be recognized (otherwise a remapped modifier could stay down).
+    @discardableResult
+    public mutating func update(config: RemapConfig) -> [OutputEvent] {
         self.config = config
+        var releases: [OutputEvent] = []
+        for action in active.values {
+            if case .emit(let events) = Self.release(action) { releases += events }
+        }
         active.removeAll()
+        return releases
     }
 
     public mutating func decide(_ event: InputEvent, frontmostBundleID: String?) -> RemapDecision {

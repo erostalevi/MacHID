@@ -87,6 +87,25 @@ public enum MacroStep: Codable, Equatable, Sendable {
 public struct Macro: Codable, Equatable, Sendable, Identifiable {
     public static let maxSteps = 200
     public static let maxRepeat = 100
+    public static let maxTextLength = 2000
+    public static let maxCommandLength = 4000
+
+    /// The macro with every step clamped to a sane size (used for anything that comes from outside).
+    public func clamped() -> Macro {
+        var copy = self
+        copy.steps = Array(steps.prefix(Self.maxSteps)).map { step in
+            switch step {
+            case .text(let text): .text(String(text.prefix(Self.maxTextLength)))
+            case .shell(let command): .shell(String(command.prefix(Self.maxCommandLength)))
+            case .open(let target): .open(String(target.prefix(1000)))
+            case .shortcut(let name): .shortcut(String(name.prefix(200)))
+            case .wait(let milliseconds): .wait(milliseconds: min(max(milliseconds, 0), 3_600_000))
+            default: step
+            }
+        }
+        copy.repeatCount = min(max(repeatCount, 1), Self.maxRepeat)
+        return copy
+    }
 
     public let id: String
     public var name: String
@@ -106,7 +125,9 @@ public struct Macro: Codable, Equatable, Sendable, Identifiable {
         self.imported = imported
     }
 
-    public var needsApproval: Bool { steps.contains { $0.isPowerful } }
+    /// Imported macros always need approval, even when they only press keys: a key sequence can open a launcher and type a
+    /// command, which would sidestep every check on shell and app steps.
+    public var needsApproval: Bool { imported || steps.contains { $0.isPowerful } }
     public var usesShell: Bool { steps.contains { $0.isShell } }
 }
 

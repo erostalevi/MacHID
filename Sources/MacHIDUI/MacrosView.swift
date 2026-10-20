@@ -163,7 +163,7 @@ private struct MacroEditor: View {
     private var approvalBox: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("This macro can act outside typing and clicking", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.callout.weight(.semibold))
-            ForEach(Array(macro.steps.enumerated().filter { $0.element.isPowerful }), id: \.offset) { _, step in
+            ForEach(Array(macro.steps.enumerated().filter { $0.element.isPowerful || macro.imported }), id: \.offset) { _, step in
                 Text(verbatim: describe(step)).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     .padding(6).frame(maxWidth: .infinity, alignment: .leading).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
             }
@@ -178,7 +178,10 @@ private struct MacroEditor: View {
         case .open(let target): "open  \(target)"
         case .shortcut(let name): "shortcut  \(name)"
         case .shell(let command): "$ \(command)"
-        default: step.kindName
+        case .text(let text): "type  \(text)"
+        case .key(let code, let modifiers): "key  \(KeyNames.combination(code: code, modifiers: modifiers))"
+        case .mouseClick(let button): "click  \(KeyNames.mouseButton(button))"
+        case .wait(let milliseconds): "wait  \(milliseconds) ms"
         }
     }
 

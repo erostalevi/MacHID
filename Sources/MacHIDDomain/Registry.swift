@@ -57,15 +57,22 @@ public struct Registry: Sendable, Codable, Equatable {
 
     public let schemaVersion: Int
     public let plugins: [RegistryEntry]
+    /// Added by the publishing workflow inside the signed document, never committed: a counter that only goes up and the
+    /// time of issue. Together they stop an old (validly signed) list from being served again.
+    public let sequence: Int?
+    public let issuedAt: String?
 
-    public init(schemaVersion: Int = Registry.supportedSchemaVersion, plugins: [RegistryEntry]) {
+    public init(schemaVersion: Int = Registry.supportedSchemaVersion, plugins: [RegistryEntry], sequence: Int? = nil, issuedAt: String? = nil) {
         self.schemaVersion = schemaVersion
         self.plugins = plugins
+        self.sequence = sequence
+        self.issuedAt = issuedAt
     }
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
-        case plugins
+        case plugins, sequence
+        case issuedAt = "issued_at"
     }
 
     public static func decode(_ data: Data) throws -> Registry {

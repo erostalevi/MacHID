@@ -60,8 +60,9 @@ public protocol MacroLog: Sendable {
 
 // MARK: Safeguards
 
-/// Best-effort check that a shell command does not try to gain administrator rights. Shell macros also run
-/// without a terminal, so a password prompt can never be answered.
+/// Advisory check that a shell command does not try to gain administrator rights. It catches the obvious forms only;
+/// a determined author can disguise a command, so the real control is that the user reads the full command before
+/// approving it. Shell macros also run without a terminal, so a password prompt can never be answered.
 public enum ElevationGuard {
     private static let blocked: Set<String> = ["sudo", "doas", "su", "pkexec", "authopen"]
 
@@ -126,8 +127,9 @@ public actor MacroRunner {
         }
 
         if let refusal = refusal(for: macro, shellMacrosEnabled: shellMacrosEnabled) { return await finish(.refused(refusal)) }
+        // A Stop pressed for another macro must not be cleared by starting this one: reset only when nothing is running.
+        if running.isEmpty { cancelled = false }
         running.insert(macro.id)
-        cancelled = false
         defer { running.remove(macro.id) }
 
         for _ in 0..<max(1, min(macro.repeatCount, Macro.maxRepeat)) {
@@ -164,7 +166,14 @@ public actor MacroRunner {
             await poster.post(.key(code: code, modifiers: modifiers, down: true))
             await poster.post(.key(code: code, modifiers: modifiers, down: false))
         case .text(let text):
-            await poster.type(text)
+            // Typed in small pieces so Stop can interrupt a long text.
+            var rest = Substring(text.prefix(Macro.maxTextLength))
+            while !rest.isEmpty {
+                if cancelled { return "stopped" }
+                let piece = rest.prefix(40)
+                await poster.type(String(piece))
+                rest = rest.dropFirst(piece.count)
+            }
         case .mouseClick(let button):
             await poster.post(.mouse(button: button, down: true))
             await poster.post(.mouse(button: button, down: false))

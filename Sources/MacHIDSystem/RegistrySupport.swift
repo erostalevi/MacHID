@@ -118,6 +118,12 @@ public enum PluginDefinitions {
         var definitions: [DeviceDefinition] = []
         var problems: [String] = []
         for plugin in plugins {
+            // installed.json is user data: do not follow a path that was edited to point elsewhere.
+            guard PluginManifest.isSafeRelativePath(plugin.id), plugin.ref.count == 40, plugin.ref.allSatisfy(\.isHexDigit),
+                  plugin.definitionFiles.allSatisfy(PluginManifest.isSafeRelativePath) else {
+                problems.append("\(plugin.id): unsafe entry in the installed list")
+                continue
+            }
             let folder = root.appendingPathComponent(plugin.id, isDirectory: true).appendingPathComponent(plugin.ref, isDirectory: true)
             for path in plugin.definitionFiles {
                 do {

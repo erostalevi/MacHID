@@ -21,7 +21,7 @@ final class LockedEngine: @unchecked Sendable {
     private var engine = RemapEngine()
     private var frontmost: String?
 
-    func update(config: RemapConfig) { lock.lock(); engine.update(config: config); lock.unlock() }
+    func update(config: RemapConfig) -> [OutputEvent] { lock.lock(); defer { lock.unlock() }; return engine.update(config: config) }
     func setFrontmost(_ id: String?) { lock.lock(); frontmost = id; lock.unlock() }
     func decide(_ event: InputEvent) -> RemapDecision {
         lock.lock(); defer { lock.unlock() }
@@ -50,12 +50,14 @@ public final class RemapController {
     @ObservationIgnored private let makeTap: @MainActor (@escaping @Sendable (InputEvent) -> RemapDecision, @escaping @Sendable (String) -> Void) -> any EventTapping
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private let permissionPoll: Duration
+    @ObservationIgnored private let poster: (any EventPoster)?
 
     public init(repository: any RemapRepository, runner: MacroRunner,
                 fingerprint: @escaping @Sendable (Macro) -> String,
                 logReader: @escaping @Sendable () async -> [MacroLogEntry] = { [] },
                 permissionCheck: @escaping @Sendable () -> (inputMonitoring: Bool, accessibility: Bool) = { (RemapPermissions.inputMonitoring, RemapPermissions.accessibility) },
                 permissionPoll: Duration = .seconds(2),
+                poster: (any EventPoster)? = nil,
                 makeTap: @escaping @MainActor (@escaping @Sendable (InputEvent) -> RemapDecision, @escaping @Sendable (String) -> Void) -> any EventTapping) {
         self.repository = repository
         self.runner = runner
@@ -63,6 +65,7 @@ public final class RemapController {
         self.logReader = logReader
         self.permissionCheck = permissionCheck
         self.permissionPoll = permissionPoll
+        self.poster = poster
         self.makeTap = makeTap
     }
 
@@ -78,7 +81,7 @@ public final class RemapController {
 
     public func load() async {
         config = (try? await repository.load()) ?? RemapConfig()
-        engine.update(config: config)
+        _ = engine.update(config: config)
         refreshPermissions()
         recentRuns = await logReader()
         await reconcile()
@@ -132,7 +135,7 @@ public final class RemapController {
         var copy = config
         change(&copy)
         config = copy
-        engine.update(config: copy)
+        for event in engine.update(config: copy) { await poster?.post(event) }
         do { try await repository.save(copy) } catch { banner = "Could not save remap settings: \(error)" }
     }
 
@@ -189,8 +192,8 @@ public final class RemapController {
             return 0
         }
         let fresh = macros.prefix(50).map { macro in
-            Macro(id: UUID().uuidString, name: macro.name, steps: Array(macro.steps.prefix(Macro.maxSteps)),
-                  repeatCount: min(max(macro.repeatCount, 1), Macro.maxRepeat), approvedFingerprint: nil, imported: true)
+            Macro(id: UUID().uuidString, name: String(macro.name.prefix(80)), steps: macro.steps, repeatCount: macro.repeatCount,
+                  approvedFingerprint: nil, imported: true).clamped()
         }
         await update { $0.macros.append(contentsOf: fresh) }
         return fresh.count
@@ -229,7 +232,7 @@ extension RemapController {
         let runner = MacroRunner(poster: QuartzEventPoster(), shell: ProcessShellRunner(), launcher: WorkspaceLauncher(),
                                  log: log, fingerprint: MacroFingerprint.of)
         let controller = RemapController(repository: FileRemapRepository(), runner: runner, fingerprint: MacroFingerprint.of,
-                                         logReader: { await log.entries() },
+                                         logReader: { await log.entries() }, poster: QuartzEventPoster(),
                                          makeTap: { handler, runMacro in RemapEventTap(handler: handler, runMacro: runMacro) })
         // Keep the engine's idea of the frontmost app current for app-scoped rules.
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak controller] note in
