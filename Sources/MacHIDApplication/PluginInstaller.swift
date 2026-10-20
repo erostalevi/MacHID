@@ -54,6 +54,7 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
     case unknownDriver(String)
     case tooLarge(String)
     case storage(String)
+    case notApproved(String)
 
     public var description: String {
         switch self {
@@ -68,6 +69,7 @@ public enum PluginError: Error, Equatable, CustomStringConvertible {
         case .unknownDriver(let name): "unknown driver family '\(name)'"
         case .tooLarge(let what): "\(what) is too large"
         case .storage(let why): "could not store the plugin: \(why)"
+        case .notApproved(let why): "the update needs your approval: \(why)"
         }
     }
 }
@@ -99,7 +101,9 @@ public actor PluginInstaller {
         self.now = now
     }
 
-    public func install(_ entry: RegistryEntry) async throws -> InstalledPlugin {
+    /// - Parameter approve: asked once the plugin has been fully checked and before anything is stored; return a
+    ///   reason to refuse. Automatic updates use it to insist that permissions and license did not change.
+    public func install(_ entry: RegistryEntry, approve: (@Sendable (PluginManifest) -> String?)? = nil) async throws -> InstalledPlugin {
         let archive: URL
         do { archive = try await fetcher.fetchArchive(repo: entry.repo, ref: entry.ref) }
         catch { throw PluginError.download("\(error)") }
@@ -112,6 +116,7 @@ public actor PluginInstaller {
         let root = try pluginRoot(in: staging)
         let manifest = try loadManifest(in: root, entry: entry)
         let definitions = try loadDefinitions(in: root, manifest: manifest)
+        if let reason = approve?(manifest) { throw PluginError.notApproved(reason) }
 
         let destination = directory.appendingPathComponent(entry.id, isDirectory: true).appendingPathComponent(entry.ref, isDirectory: true)
         do {

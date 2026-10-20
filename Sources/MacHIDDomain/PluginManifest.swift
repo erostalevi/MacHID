@@ -43,6 +43,20 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         case coreAPI = "core_api"
     }
 
+    public init(id: String, name: String, version: String, license: String, author: String, coreAPI: APIRange, devices: [USBID],
+                driver: String?, permissions: PluginPermissions, definitions: [String]?) {
+        self.id = id
+        self.name = name
+        self.version = version
+        self.license = license
+        self.author = author
+        self.coreAPI = coreAPI
+        self.devices = devices
+        self.driver = driver
+        self.permissions = permissions
+        self.definitions = definitions
+    }
+
     public var isDataOnly: Bool { driver == nil }
 }
 
