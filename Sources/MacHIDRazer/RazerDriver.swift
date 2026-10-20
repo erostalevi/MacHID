@@ -52,10 +52,13 @@ public struct RazerDriver: DeviceDriver {
         switch (capability.id, value) {
         case ("brightness", .int(let percent)):
             guard (0...100).contains(percent) else { throw DriverError.invalidValue("brightness must be 0-100") }
+            try await ensureDriverMode(on: transport)
             _ = try await exchange(RazerCommands.setBrightness(Self.raw(fromPercent: percent), transactionID: tid), on: transport)
         case ("backlight", .color(let color)):
+            try await ensureDriverMode(on: transport)
             _ = try await exchange(RazerCommands.staticColor(color, transactionID: tid), on: transport)
         case ("backlight", .text("off")):
+            try await ensureDriverMode(on: transport)
             _ = try await exchange(RazerCommands.effectNone(transactionID: tid), on: transport)
         case ("device_mode", .int(let mode)):
             guard mode == 0 || mode == 3 else { throw DriverError.invalidValue("device_mode must be 0 (normal) or 3 (driver)") }
@@ -65,6 +68,16 @@ public struct RazerDriver: DeviceDriver {
         default:
             throw DriverError.unsupportedCapability(capability.id)
         }
+    }
+
+    /// Software lighting is ignored while the keyboard runs its own onboard effect (verified on a
+    /// Huntsman Mini). Driver mode (3) hands lighting to the host. It is volatile and is left in place
+    /// until `device_mode` is set back to 0 or the keyboard is unplugged; special keys can behave
+    /// differently while it is active.
+    func ensureDriverMode(on transport: any Transport) async throws {
+        let current = try await exchange(RazerCommands.getDeviceMode(), on: transport)
+        guard current.arguments[0] != 0x03 else { return }
+        _ = try await exchange(RazerCommands.setDeviceMode(0x03), on: transport)
     }
 
     static func raw(fromPercent percent: Int) -> UInt8 { UInt8((Double(percent) * 255 / 100).rounded()) }

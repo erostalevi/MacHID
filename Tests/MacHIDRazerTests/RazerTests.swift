@@ -93,7 +93,7 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
         try await driver().write(.int(100), to: brightness, using: transport)
         try await driver().write(.int(0), to: brightness, using: transport)
         try await driver().write(.int(50), to: brightness, using: transport)
-        let raws = await transport.sent.map { $0.arguments[2] }
+        let raws = await transport.sent.filter { $0.commandClass == 0x0F }.map { $0.arguments[2] }
         #expect(raws == [255, 0, 128])
         #expect(RazerDriver.percent(fromRaw: 255) == 100 && RazerDriver.percent(fromRaw: 128) == 50)
     }
@@ -116,7 +116,7 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
         let transport = FakeTransport { ok($0) }
         try await driver().write(.color(RGBColor(r: 1, g: 2, b: 3)), to: backlight, using: transport)
         try await driver().write(.text("off"), to: backlight, using: transport)
-        let sent = await transport.sent
+        let sent = await transport.sent.filter { $0.commandClass == 0x0F }
         #expect(sent[0].arguments[2] == 0x01 && Array(sent[0].arguments[6...8]) == [1, 2, 3])
         #expect(sent[1].arguments[2] == 0x00 && sent[1].dataSize == 6)
         #expect(sent.allSatisfy { $0.transactionID == 0x3F })
@@ -129,7 +129,7 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
             return response
         }
         try await driver().write(.int(10), to: brightness, using: transport)
-        #expect(await transport.sent.count == 3)
+        #expect(await transport.sent.count == 5)  // get mode: busy, busy, ok; then set mode; then brightness
     }
 
     @Test func failsWhenAlwaysBusyOrFailing() async {
@@ -168,5 +168,20 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
         let transport = FakeTransport { ok($0) }
         await #expect(throws: DriverError.self) { try await driver().write(.int(2), to: mode, using: transport) }
         #expect(await transport.sent.isEmpty)
+    }
+
+    @Test func lightingWriteEntersDriverModeFirst() async throws {
+        // Device reports normal mode (0): expect get mode, set mode 3, then the lighting command.
+        let transport = FakeTransport { ok($0, arguments: [0, 0]) }
+        try await driver().write(.color(RGBColor(r: 255, g: 0, b: 0)), to: backlight, using: transport)
+        let sent = await transport.sent
+        #expect(sent.map(\.commandID) == [0x84, 0x04, 0x02])
+        #expect(sent[1].commandClass == 0x00 && sent[1].arguments[0] == 3)
+    }
+
+    @Test func lightingWriteSkipsModeChangeWhenAlreadyInDriverMode() async throws {
+        let transport = FakeTransport { ok($0, arguments: [3, 0]) }
+        try await driver().write(.int(40), to: brightness, using: transport)
+        #expect(await transport.sent.map(\.commandID) == [0x84, 0x04])
     }
 }

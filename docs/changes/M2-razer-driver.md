@@ -35,6 +35,12 @@ Esto confirma en un Huntsman Mini real: selección de interfaz por `MaxFeatureRe
 
 **Recomendación de driver**: tras una escritura, no confiar en una relectura inmediata; si se necesita verificar, esperar ≥ 100 ms (a medir) o leer de nuevo. La conversión 0-100 ↔ 0-255 se confirma de forma indirecta (255 se lee como 100).
 
+## Hallazgo: el modo driver es necesario para la iluminación por software
+Con el teclado en modo normal (0) los comandos de brillo y color eran aceptados (`status 02`, eco correcto, brillo releído) pero la luz arcoíris del teclado no cambiaba. Fuente: el código de OpenRazer fija el modo dispositivo a 0 al conectar y su daemon pasa a **modo driver (3)** antes de aplicar efectos. Verificado en el Huntsman Mini del usuario: `get device_mode` → `0`; `set device_mode 3` → `3`; `set backlight FF0000` → **todo el teclado en rojo**.
+- Nueva capability `device_mode` (valores 0 y 3, volátil; el modo 2 de prueba de fábrica está bloqueado) con comandos `00/84` (leer) y `00/04` (escribir), transaction id 0xFF.
+- `RazerDriver` entra en modo driver automáticamente antes de escrituras de iluminación (`ensureDriverMode`) y lo deja activo; `machid set <id> device_mode 0` o desconectar el teclado lo devuelve al modo normal. En modo driver las teclas especiales pueden comportarse distinto.
+- Pendiente de decisión para la app: restaurar el modo 0 al salir y mientras tanto reaplicar el perfil.
+
 ## Riesgos y pendientes
 - Si el firmware responde distinto en macOS (tamaño de reporte o ID de reporte), habrá que ajustar `IOKitHIDTransport` (por ejemplo, si el reporte debe llevar el ID 0 como primer byte).
 - El permiso de Input Monitoring se asocia al proceso anfitrión: en la app final hay que pedirlo de forma guiada (SPEC §7).
