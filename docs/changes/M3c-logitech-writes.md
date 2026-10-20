@@ -19,8 +19,12 @@ Permitir cambiar DPI y color de iluminación del G203 de forma volátil, con com
 - Escribir luz toma el control de las LEDs (función 8 = 1) automáticamente y lo deja activo; `machid set 046d:c092 device_mode 0` devuelve el efecto propio del mouse.
 - La persistencia queda siempre en 0; no se escribe nada en la memoria del mouse (SPEC §9).
 
+## Validación en hardware
+- DPI (G203 real, ejecutado por el usuario): `set dpi 1600` y `set dpi 3200` funcionaron correctamente, con relectura y comportamiento del cursor acorde ("works perfectly"). Confirma la función 3 de ADJUSTABLE_DPI, la validación contra la lista del sensor y el eco. El primer intento falló solo porque el CLI aún no aceptaba `dpi` en `set` (corregido en `5c95dba`); no llegó a enviarse nada.
+- **Pendiente en hardware**: luces (`backlight`) y `device_mode`.
+
 ## Riesgos y pendientes
-- **Sin validación en hardware.** Solo hay pruebas contra un dispositivo simulado construido a partir de las fuentes anteriores. Podría haber diferencias en el G203 real (por ejemplo, otro número de zonas o un efecto "fijo" con otro id).
+- **Luces sin validar en hardware.** Solo hay pruebas contra un dispositivo simulado construido a partir de las fuentes anteriores. Podría haber diferencias en el G203 real (por ejemplo, otro número de zonas o un efecto "fijo" con otro id).
 - El efecto previo del mouse no se puede leer ni restaurar desde MacHID; se recupera con `device_mode 0` o reconectando.
 - Si el DPI se aplica solo al perfil activo del mouse (perfil onboard), puede volver al valor guardado al reconectar; hay que comprobarlo.
 - Otras funciones (tasa de sondeo 0x8060/0x8061, perfiles onboard) no se tocan.
