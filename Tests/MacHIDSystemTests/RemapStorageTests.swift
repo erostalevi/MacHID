@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 import MacHIDApplication
@@ -70,4 +71,14 @@ private func tempURL(_ name: String) -> URL {
         let size = try #require(try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
         #expect(size < 1500)
     }
+}
+
+@Test func approvalDependsOnTheKey() {
+    let macro = Macro(id: "m", name: "M", steps: [.shell("echo hi")])
+    let original = MacroFingerprint.key
+    defer { MacroFingerprint.key = original }
+    let first = MacroFingerprint.of(macro)
+    MacroFingerprint.key = SymmetricKey(data: Data(repeating: 7, count: 32))
+    #expect(MacroFingerprint.of(macro) != first)          // a forged hash without the key does not verify
+    #expect(MacroFingerprint.of(macro).count == 64)
 }

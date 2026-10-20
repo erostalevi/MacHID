@@ -64,7 +64,7 @@ Useful commands: `machid list --all`, `machid info 1532:0257`, `machid get 046d:
 ### Known gaps
 - Code plugins: manifest `interfaces` not enforced (interface is chosen by report size); infinite JS loops stopped only by the app's timeout; sandbox network block not proven (file block is proven); the code warning appears only after download (registry entry does not say it has code).
 - Data plugins: declared permissions are shown, not enforced against the built-in drivers.
-- Macro approval is an unauthenticated SHA-256 stored beside the macro (same-user process can forge it); `ElevationGuard` is advisory. Future: HMAC with a Keychain key.
+- Macro approval is an HMAC with a Keychain key (M10); a same-user process with Keychain access could still sign. `ElevationGuard` is advisory.
 - Registry: replay/stale lists are rejected (sequence + issue date stamped by `registry.yml`), but a local cache attacker is out of scope.
 - Battery: Logitech wireless via receiver needs receiver device indexes (HID++ client only addresses 0xFF); no definition declares `battery` yet.
 - Remapping cannot tell which device an event came from, and cannot use modifier keys (Caps Lock, fn) as triggers.
