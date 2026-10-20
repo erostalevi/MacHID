@@ -26,6 +26,9 @@ public final class AppModel {
     public private(set) var profiles: [Profile] = []
     /// Device definition id -> id of the profile last applied to it.
     public private(set) var activeProfileIDs: [String: String] = [:]
+    public private(set) var automation = AutomationConfig()
+    /// Bundle id of the app the user is working in (MacHID itself is ignored).
+    public private(set) var frontmostBundleID: String?
     public private(set) var inputMonitoringGranted = true
     public var banner: String?
     /// Set by the app scene so the delegate and the menu can bring the window forward.
@@ -34,6 +37,7 @@ public final class AppModel {
     @ObservationIgnored private let inventory: DeviceInventory
     @ObservationIgnored private let control: DeviceControl
     @ObservationIgnored private let repository: any ProfileRepository
+    @ObservationIgnored private let automationRepository: any AutomationRepository
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let writeDelay: Duration
     @ObservationIgnored private let permissionCheck: @Sendable () -> Bool
@@ -45,6 +49,7 @@ public final class AppModel {
     private static let activeProfilesKey = "activeProfileIDs"
 
     public init(inventory: DeviceInventory, control: DeviceControl, repository: any ProfileRepository,
+                automationRepository: any AutomationRepository = MemoryAutomationRepository(),
                 defaults: UserDefaults = .standard, writeDelay: Duration = .milliseconds(150),
                 deviceChanges: AsyncStream<Void>? = nil,
                 permissionCheck: @escaping @Sendable () -> Bool = { InputMonitoringPermission.isGranted }) {
@@ -52,6 +57,7 @@ public final class AppModel {
         self.inventory = inventory
         self.control = control
         self.repository = repository
+        self.automationRepository = automationRepository
         self.defaults = defaults
         self.writeDelay = writeDelay
         self.permissionCheck = permissionCheck
@@ -78,6 +84,7 @@ public final class AppModel {
         let interval = pollInterval ?? (deviceChanges == nil ? .seconds(2) : .seconds(30))
         pollTask = Task { [weak self] in
             await self?.reloadProfiles()
+            await self?.reloadAutomation()
             while !Task.isCancelled {
                 await self?.refreshDevices()
                 try? await Task.sleep(for: interval)
@@ -134,7 +141,10 @@ public final class AppModel {
         if selectedDeviceID == nil || !devices.contains(where: { $0.id == selectedDeviceID }) {
             selectedDeviceID = devices.first?.id
         }
-        for id in added { await loadValues(for: id) }
+        for id in added {
+            await loadValues(for: id)
+            await applyOnConnect(deviceID: id)
+        }
     }
 
     /// Reads every readable capability (and device-reported limits) once, when a device appears.
@@ -233,6 +243,7 @@ public final class AppModel {
             try await repository.delete(id: id)
             await reloadProfiles()
             for (definition, active) in activeProfileIDs where active == id { setActive(nil, definitionID: definition) }
+            await updateAutomation { $0 = $0.removingRules(forProfile: id) }
         } catch {
             banner = "Could not delete the profile: \(error)"
         }
@@ -251,8 +262,77 @@ public final class AppModel {
         setActive(profile.id, definitionID: definition.id)
     }
 
+    // MARK: Automation
+
+    public var knownDefinitions: [DeviceDefinition] { inventory.catalog.definitions }
+
+    public func reloadAutomation() async {
+        automation = (try? await automationRepository.load()) ?? AutomationConfig()
+    }
+
+    private func updateAutomation(_ change: (inout AutomationConfig) -> Void) async {
+        var copy = automation
+        change(&copy)
+        automation = copy
+        do { try await automationRepository.save(copy) } catch { banner = "Could not save automation settings: \(error)" }
+    }
+
+    public func setAutomationPaused(_ paused: Bool) async { await updateAutomation { $0.paused = paused } }
+    public func setApplyOnConnect(_ enabled: Bool) async { await updateAutomation { $0.applyOnConnect = enabled } }
+
+    public func setDefaultProfile(_ profileID: String?, forDefinition definitionID: String) async {
+        await updateAutomation { $0.defaultProfiles[definitionID] = profileID }
+    }
+
+    public func addRule(bundleID: String, appName: String, definitionID: String, profileID: String) async {
+        let rule = AppRule(id: UUID().uuidString, bundleID: bundleID, appName: appName,
+                           deviceDefinitionID: definitionID, profileID: profileID)
+        await updateAutomation { $0 = $0.upserting(rule) }
+        await applyAutomationForFrontmostApp()
+    }
+
+    public func removeRule(_ id: String) async {
+        await updateAutomation { $0.rules.removeAll { $0.id == id } }
+    }
+
+    /// Called when the user switches app. Applies what the rules or defaults say for each connected device.
+    public func frontmostAppChanged(_ bundleID: String?) async {
+        frontmostBundleID = bundleID
+        await applyAutomationForFrontmostApp()
+    }
+
+    private func applyAutomationForFrontmostApp() async {
+        for entry in devices {
+            guard let definitionID = entry.definition?.id,
+                  let desired = automation.profileID(frontmostBundleID: frontmostBundleID, deviceDefinitionID: definitionID),
+                  desired != activeProfileIDs[definitionID],
+                  profiles.contains(where: { $0.id == desired && $0.settings[definitionID] != nil }) else { continue }
+            await applyProfile(desired, to: entry.id)
+        }
+    }
+
+    /// A device that was just plugged in gets its profile back: what the rules say for the current app,
+    /// otherwise the profile it had last time.
+    private func applyOnConnect(deviceID: String) async {
+        guard automation.applyOnConnect, !automation.paused,
+              let definitionID = devices.first(where: { $0.id == deviceID })?.definition?.id else { return }
+        let desired = automation.profileID(frontmostBundleID: frontmostBundleID, deviceDefinitionID: definitionID)
+            ?? activeProfileIDs[definitionID]
+        guard let desired, profiles.contains(where: { $0.id == desired && $0.settings[definitionID] != nil }) else { return }
+        await applyProfile(desired, to: deviceID)
+    }
+
     private func setActive(_ profileID: String?, definitionID: String) {
         activeProfileIDs[definitionID] = profileID
         defaults.set(activeProfileIDs, forKey: Self.activeProfilesKey)
     }
+}
+
+
+/// Used when no repository is given (tests, previews): keeps the settings in memory only.
+public actor MemoryAutomationRepository: AutomationRepository {
+    private var config = AutomationConfig()
+    public init() {}
+    public func load() -> AutomationConfig { config }
+    public func save(_ config: AutomationConfig) { self.config = config }
 }

@@ -1,0 +1,182 @@
+import SwiftUI
+import AppKit
+import MacHIDDomain
+
+/// Settings: start at login, automatic profiles, per-device defaults and per-app rules.
+public struct SettingsView: View {
+    @Bindable var model: AppModel
+    @State private var launchAtLogin = LoginItem.isEnabled
+    @State private var loginError: String?
+    @State private var addingRule = false
+
+    public init(model: AppModel) { self.model = model }
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                general
+                defaults
+                rules
+            }
+            .padding(24)
+        }
+        .frame(minWidth: 560, minHeight: 520)
+        .background(.background)
+    }
+
+    private func card<Content: View>(_ title: Text, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            title.font(.headline)
+            content()
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassSurface(cornerRadius: 24)
+    }
+
+    // MARK: Sections
+
+    private var general: some View {
+        card(Text("General")) {
+            Toggle("Start MacHID when I log in", isOn: Binding(get: { launchAtLogin }, set: { value in
+                do { try LoginItem.set(value); launchAtLogin = value; loginError = nil }
+                catch { launchAtLogin = LoginItem.isEnabled; loginError = "\(error)" }
+            }))
+            if let loginError { Text(verbatim: loginError).font(.caption).foregroundStyle(.orange) }
+            Toggle("Apply a device's profile when it is plugged in", isOn: Binding(
+                get: { model.automation.applyOnConnect }, set: { value in Task { await model.setApplyOnConnect(value) } }))
+            Toggle("Pause automatic profiles", isOn: Binding(
+                get: { model.automation.paused }, set: { value in Task { await model.setAutomationPaused(value) } }))
+        }
+    }
+
+    private var defaults: some View {
+        card(Text("Default profiles")) {
+            Text("Used when no app rule matches the app you are working in.").font(.callout).foregroundStyle(.secondary)
+            let definitions = model.knownDefinitions.filter { definition in
+                model.profiles.contains { $0.settings[definition.id] != nil }
+            }
+            if definitions.isEmpty {
+                Text("Save a profile from the main window first.").font(.callout).foregroundStyle(.tertiary)
+            }
+            ForEach(definitions) { definition in
+                HStack {
+                    Label(definition.name, systemImage: Titles.symbol(for: definition.category))
+                    Spacer()
+                    profileMenu(definitionID: definition.id, selection: model.automation.defaultProfiles[definition.id],
+                                none: Text("None")) { id in Task { await model.setDefaultProfile(id, forDefinition: definition.id) } }
+                }
+            }
+        }
+    }
+
+    private var rules: some View {
+        card(Text("App rules")) {
+            Text("When one of these apps is in front, the device switches to the chosen profile.")
+                .font(.callout).foregroundStyle(.secondary)
+            if model.automation.rules.isEmpty {
+                Text("No rules yet.").font(.callout).foregroundStyle(.tertiary)
+            }
+            ForEach(model.automation.rules) { rule in
+                HStack(spacing: 10) {
+                    appIcon(rule.bundleID).frame(width: 24, height: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: rule.appName).font(.callout.weight(.medium))
+                        Text(verbatim: "\(definitionName(rule.deviceDefinitionID)) → \(profileName(rule.profileID))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button { Task { await model.removeRule(rule.id) } } label: { Image(systemName: "trash") }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove rule")
+                }
+            }
+            Button { addingRule = true } label: { Label("Add rule…", systemImage: "plus") }
+                .buttonStyle(PillButtonStyle())
+                .disabled(!model.profiles.contains { _ in true })
+                .popover(isPresented: $addingRule, arrowEdge: .bottom) { AddRuleView(model: model) { addingRule = false } }
+        }
+    }
+
+    // MARK: Helpers
+
+    private func profileMenu(definitionID: String, selection: String?, none: Text, choose: @escaping (String?) -> Void) -> some View {
+        Menu {
+            Button { choose(nil) } label: { none }
+            Divider()
+            ForEach(model.profiles.filter { $0.settings[definitionID] != nil }) { profile in
+                Button { choose(profile.id) } label: {
+                    if profile.id == selection { Label(profile.name, systemImage: "checkmark") } else { Text(verbatim: profile.name) }
+                }
+            }
+        } label: {
+            if let selection, let profile = model.profiles.first(where: { $0.id == selection }) { Text(verbatim: profile.name) } else { none }
+        }
+        .menuStyle(.borderlessButton).fixedSize()
+    }
+
+    private func definitionName(_ id: String) -> String { model.knownDefinitions.first { $0.id == id }?.name ?? id }
+    private func profileName(_ id: String) -> String { model.profiles.first { $0.id == id }?.name ?? "—" }
+
+    @ViewBuilder private func appIcon(_ bundleID: String) -> some View {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable()
+        } else {
+            Image(systemName: "app.dashed").resizable().scaledToFit().foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct AddRuleView: View {
+    @Bindable var model: AppModel
+    let done: () -> Void
+    @State private var app: RunningApp?
+    @State private var definitionID: String?
+    @State private var profileID: String?
+
+    struct RunningApp: Hashable { let bundleID: String; let name: String }
+
+    private var runningApps: [RunningApp] {
+        let own = Bundle.main.bundleIdentifier
+        return NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil && $0.bundleIdentifier != own }
+            .map { RunningApp(bundleID: $0.bundleIdentifier!, name: $0.localizedName ?? $0.bundleIdentifier!) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var definitions: [DeviceDefinition] {
+        model.knownDefinitions.filter { definition in model.profiles.contains { $0.settings[definition.id] != nil } }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("New rule").font(.headline)
+            Picker("App", selection: $app) {
+                Text("Choose…").tag(RunningApp?.none)
+                ForEach(runningApps, id: \.self) { Text(verbatim: $0.name).tag(Optional($0)) }
+            }
+            Picker("Device", selection: $definitionID) {
+                Text("Choose…").tag(String?.none)
+                ForEach(definitions) { Text(verbatim: $0.name).tag(Optional($0.id)) }
+            }
+            Picker("Profile", selection: $profileID) {
+                Text("Choose…").tag(String?.none)
+                ForEach(model.profiles.filter { definitionID != nil && $0.settings[definitionID!] != nil }) {
+                    Text(verbatim: $0.name).tag(Optional($0.id))
+                }
+            }
+            .disabled(definitionID == nil)
+            HStack {
+                Spacer()
+                Button("Add") {
+                    guard let app, let definitionID, let profileID else { return }
+                    Task { await model.addRule(bundleID: app.bundleID, appName: app.name, definitionID: definitionID, profileID: profileID) }
+                    done()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(app == nil || definitionID == nil || profileID == nil)
+            }
+        }
+        .padding(18).frame(width: 320)
+        .onChange(of: definitionID) { _, _ in profileID = nil }
+    }
+}

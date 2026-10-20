@@ -39,6 +39,7 @@ func run() {
         render(MainWindowView(model: model).background(backdrop), size: CGSize(width: 760, height: 660), to: out.appendingPathComponent("window-\(name)-dark.png"), dark: true)
     }
     let model = PreviewSupport.model(selecting: .mouse)
+    render(SettingsView(model: model).background(backdrop), size: CGSize(width: 600, height: 620), to: out.appendingPathComponent("settings.png"))
     render(MenuPanelView(model: model).background(backdrop), size: CGSize(width: 340, height: 420), to: out.appendingPathComponent("menu-panel.png"))
 }
 

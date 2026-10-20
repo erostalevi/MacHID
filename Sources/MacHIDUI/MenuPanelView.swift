@@ -26,6 +26,9 @@ public struct MenuPanelView: View {
                 .motion(\.smooth, value: model.devices.map(\.id))
             }
             if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionRow }
+            Toggle("Pause automatic profiles", isOn: Binding(
+                get: { model.automation.paused }, set: { value in Task { await model.setAutomationPaused(value) } }))
+                .toggleStyle(.switch).font(.callout)
             footer
         }
         .padding(14)
@@ -55,6 +58,9 @@ public struct MenuPanelView: View {
         HStack {
             Button { show() } label: { Label("Open MacHID…", systemImage: "macwindow") }
                 .buttonStyle(PillButtonStyle())
+            Button { openWindow(id: "settings"); NSApplication.shared.activate() } label: { Image(systemName: "gearshape") }
+                .buttonStyle(PillButtonStyle())
+                .help("Settings")
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(PillButtonStyle())

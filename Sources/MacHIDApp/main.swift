@@ -47,6 +47,12 @@ struct MacHIDApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 760, height: 660)
+
+        Window("Settings", id: "settings") {
+            SettingsView(model: model)
+        }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 600, height: 620)
         .commands {
             CommandMenu("Device") {
                 Button("Next Device") { withAnimation(.smooth) { model.selectNextDevice(offset: 1) } }

@@ -151,3 +151,49 @@ import Testing
         #expect(RegistryValidator().validate(registry).isEmpty)
     }
 }
+
+@Suite struct AutomationTests {
+    private func rule(_ id: String, app: String = "com.app", device: String = "kbd", profile: String = "p1") -> AppRule {
+        AppRule(id: id, bundleID: app, appName: app, deviceDefinitionID: device, profileID: profile)
+    }
+
+    @Test func ruleBeatsDefaultAndDefaultBeatsNothing() {
+        var config = AutomationConfig()
+        config.defaultProfiles["kbd"] = "default"
+        config = config.upserting(rule("r1", app: "com.game", profile: "game"))
+        #expect(config.profileID(frontmostBundleID: "com.game", deviceDefinitionID: "kbd") == "game")
+        #expect(config.profileID(frontmostBundleID: "com.other", deviceDefinitionID: "kbd") == "default")
+        #expect(config.profileID(frontmostBundleID: nil, deviceDefinitionID: "kbd") == "default")
+        #expect(config.profileID(frontmostBundleID: "com.game", deviceDefinitionID: "mouse") == nil)
+    }
+
+    @Test func pausedMeansNothingIsResolved() {
+        var config = AutomationConfig().upserting(rule("r1"))
+        config.defaultProfiles["kbd"] = "d"
+        config.paused = true
+        #expect(config.profileID(frontmostBundleID: "com.app", deviceDefinitionID: "kbd") == nil)
+    }
+
+    @Test func oneRulePerAppAndDevice() {
+        let config = AutomationConfig().upserting(rule("r1", profile: "a")).upserting(rule("r2", profile: "b"))
+        #expect(config.rules.count == 1 && config.rules[0].profileID == "b")
+        let other = config.upserting(rule("r3", device: "mouse"))
+        #expect(other.rules.count == 2)
+        #expect(other.upserting(rule("r3", device: "mouse", profile: "c")).rules.count == 2)
+    }
+
+    @Test func removingAProfileCleansRulesAndDefaults() {
+        var config = AutomationConfig().upserting(rule("r1", profile: "gone")).upserting(rule("r2", app: "com.b", profile: "kept"))
+        config.defaultProfiles = ["kbd": "gone", "mouse": "kept"]
+        let cleaned = config.removingRules(forProfile: "gone")
+        #expect(cleaned.rules.map(\.id) == ["r2"])
+        #expect(cleaned.defaultProfiles == ["mouse": "kept"])
+    }
+
+    @Test func roundTripsThroughJSON() throws {
+        var config = AutomationConfig().upserting(rule("r1"))
+        config.paused = true
+        let data = try JSONEncoder().encode(config)
+        #expect(try JSONDecoder().decode(AutomationConfig.self, from: data) == config)
+    }
+}

@@ -202,3 +202,99 @@ private let hubDevice = DiscoveredDevice(usbId: hubID, name: "Hub")
         model.stop()
     }
 }
+
+@MainActor
+@Suite struct AutomationFlowTests {
+    /// A keyboard with two saved profiles, "Quiet" (brightness 10) and "Loud" (brightness 90).
+    private func setup() async throws -> (AppModel, MutableEnumerator, FakeDriver, String, Profile, Profile) {
+        let (model, enumerator, driver, _) = makeModel(devices: [kbdDevice])
+        await model.reloadAutomation()
+        await model.refreshDevices()
+        let id = model.devices[0].id
+        model.set(.int(10), capability: "brightness", on: id)
+        await model.flushWrites()
+        let quiet = try #require(await model.saveProfile(named: "Quiet", from: id))
+        model.set(.int(90), capability: "brightness", on: id)
+        await model.flushWrites()
+        let loud = try #require(await model.saveProfile(named: "Loud", from: id))
+        return (model, enumerator, driver, id, quiet, loud)
+    }
+
+    private func lastBrightness(_ driver: FakeDriver) async -> SettingValue? {
+        await driver.writes.last { $0.0 == "brightness" }?.1
+    }
+
+    @Test func ruleAppliesWhenItsAppComesToTheFront() async throws {
+        let (model, _, driver, _, quiet, loud) = try await setup()
+        await model.addRule(bundleID: "com.game", appName: "Game", definitionID: "kbd", profileID: quiet.id)
+        await model.frontmostAppChanged("com.game")
+        #expect(await lastBrightness(driver) == .int(10))
+        #expect(model.activeProfile(for: model.devices[0].id)?.id == quiet.id)
+
+        let writes = await driver.writes.count
+        await model.frontmostAppChanged("com.unrelated")          // no rule, no default: leave things alone
+        #expect(await driver.writes.count == writes)
+        _ = loud
+    }
+
+    @Test func defaultProfileIsUsedWhenNoRuleMatches() async throws {
+        let (model, _, driver, _, quiet, loud) = try await setup()
+        await model.setDefaultProfile(quiet.id, forDefinition: "kbd")
+        await model.addRule(bundleID: "com.game", appName: "Game", definitionID: "kbd", profileID: loud.id)
+        await model.frontmostAppChanged("com.game")
+        #expect(await lastBrightness(driver) == .int(90))
+        await model.frontmostAppChanged("com.mail")
+        #expect(await lastBrightness(driver) == .int(10))
+    }
+
+    @Test func pausingStopsAutomaticSwitching() async throws {
+        let (model, _, driver, _, quiet, _) = try await setup()
+        await model.addRule(bundleID: "com.game", appName: "Game", definitionID: "kbd", profileID: quiet.id)
+        await model.setAutomationPaused(true)
+        let before = await driver.writes.count
+        await model.frontmostAppChanged("com.game")
+        #expect(await driver.writes.count == before)
+        await model.setAutomationPaused(false)
+        await model.frontmostAppChanged("com.game")
+        #expect(await lastBrightness(driver) == .int(10))
+    }
+
+    @Test func aReplugGetsItsLastProfileBack() async throws {
+        let (model, enumerator, driver, _, quiet, _) = try await setup()
+        await model.applyProfile(quiet.id, to: model.devices[0].id)
+        enumerator.set([])
+        await model.refreshDevices()
+        #expect(model.devices.isEmpty)
+        let before = await driver.writes.count
+        enumerator.set([kbdDevice])
+        await model.refreshDevices()
+        #expect(await driver.writes.count > before)
+        #expect(await lastBrightness(driver) == .int(10))
+    }
+
+    @Test func applyOnConnectCanBeTurnedOff() async throws {
+        let (model, enumerator, driver, _, quiet, _) = try await setup()
+        await model.applyProfile(quiet.id, to: model.devices[0].id)
+        await model.setApplyOnConnect(false)
+        enumerator.set([]); await model.refreshDevices()
+        let before = await driver.writes.count
+        enumerator.set([kbdDevice]); await model.refreshDevices()
+        #expect(await driver.writes.count == before)
+    }
+
+    @Test func deletingAProfileRemovesItsRulesAndDefaults() async throws {
+        let (model, _, _, _, quiet, loud) = try await setup()
+        await model.addRule(bundleID: "com.game", appName: "Game", definitionID: "kbd", profileID: quiet.id)
+        await model.setDefaultProfile(quiet.id, forDefinition: "kbd")
+        await model.deleteProfile(quiet.id)
+        #expect(model.automation.rules.isEmpty && model.automation.defaultProfiles.isEmpty)
+        _ = loud
+    }
+
+    @Test func rulesSurviveReloadingFromTheRepository() async throws {
+        let (model, _, _, _, quiet, _) = try await setup()
+        await model.addRule(bundleID: "com.game", appName: "Game", definitionID: "kbd", profileID: quiet.id)
+        await model.reloadAutomation()
+        #expect(model.automation.rules.count == 1)
+    }
+}

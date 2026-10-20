@@ -5,6 +5,7 @@ import MacHIDIOKit
 import MacHIDSystem
 
 @MainActor private var liveMonitor: IOKitDeviceMonitor?
+@MainActor private var liveFrontmostMonitor: FrontmostAppMonitor?
 
 extension AppModel {
     /// The real thing: IOKit enumeration, real drivers, profiles in Application Support.
@@ -15,7 +16,10 @@ extension AppModel {
         let control = DeviceControl(inventory: inventory, connector: SessionPool(wrapping: SystemDeviceConnector()))
         let monitor = IOKitDeviceMonitor()
         liveMonitor = monitor   // keeps the notification port alive for the life of the app
-        return AppModel(inventory: inventory, control: control, repository: FileProfileRepository(), deviceChanges: monitor.changes)
+        let model = AppModel(inventory: inventory, control: control, repository: FileProfileRepository(),
+                             automationRepository: FileAutomationRepository(), deviceChanges: monitor.changes)
+        liveFrontmostMonitor = FrontmostAppMonitor(model: model)
+        return model
     }
 
     /// Looks for the bundled definitions: inside the app, then an override, then the repository checkout.

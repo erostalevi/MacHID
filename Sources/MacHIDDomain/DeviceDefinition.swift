@@ -69,3 +69,5 @@ enum Identifier {
         return value.utf8.allSatisfy { ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57) || $0 == 45 }
     }
 }
+
+extension DeviceDefinition: Identifiable {}
