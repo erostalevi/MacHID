@@ -49,6 +49,8 @@ func describe(_ value: SettingValue) -> String {
     case .color(let color): String(format: "#%02X%02X%02X", color.r, color.g, color.b)
     case .effect(let effect):
         effect.color.map { effect.effect + String(format: ":#%02X%02X%02X", $0.r, $0.g, $0.b) } ?? effect.effect
+    case .battery(let percent, let charging):
+        (percent.map { "\($0)%" } ?? "unknown") + (charging == true ? " (charging)" : "")
     case .text(let text): text
     }
 }

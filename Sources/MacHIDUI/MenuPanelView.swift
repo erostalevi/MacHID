@@ -128,6 +128,9 @@ private struct DeviceCard: View {
             HStack(spacing: 10) {
                 Image(systemName: Titles.symbol(for: device.definition?.category ?? .other)).frame(width: 22)
                 Text(verbatim: device.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                if let percent = model.batteryPercent(for: device.id) {
+                    BatteryBadge(percent: percent, charging: model.isCharging(device.id))
+                }
                 Spacer()
                 profileMenu
             }

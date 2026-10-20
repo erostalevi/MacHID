@@ -2321,6 +2321,17 @@
           }
         }
       }
+    },
+    "Low battery alerts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avisos de batería baja"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
