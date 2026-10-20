@@ -8,6 +8,8 @@
     { "id": "info", "type": "info", "access": "read" },
     { "id": "brightness", "type": "brightness", "access": "write_volatile",
       "parameters": { "min": 0, "max": 100, "step": 1 } },
+    { "id": "device_mode", "type": "device_mode", "access": "write_volatile",
+      "parameters": { "values": [0, 3] } },
     { "id": "backlight", "type": "lighting_zone", "access": "write_volatile",
       "parameters": { "zones": [ { "id": "backlight", "modes": ["static", "off"] } ] } }
   ]

@@ -18,7 +18,7 @@
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "type": { "enum": ["dpi", "polling_rate", "lighting_zone", "brightness", "button_remap", "key_remap", "macro_slots", "profile_slots", "battery", "info", "camera_control"] },
+          "type": { "enum": ["dpi", "polling_rate", "lighting_zone", "brightness", "button_remap", "key_remap", "macro_slots", "profile_slots", "battery", "info", "camera_control", "device_mode"] },
           "access": { "enum": ["read", "write_volatile", "write_persistent"] },
           "parameters": {
             "type": "object",

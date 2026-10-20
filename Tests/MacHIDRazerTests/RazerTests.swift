@@ -150,4 +150,23 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
         #expect(RazerModel.model(for: USBID(vendor: 0x1532, product: 0x0257))?.lightingTransactionID == 0x3F)
         #expect(RazerModel.model(for: USBID(vendor: 0x1532, product: 0x0001)) == nil)
     }
+
+    @Test func deviceModeReadAndWrite() async throws {
+        let mode = CapabilityDescriptor(id: "device_mode", type: .deviceMode, access: .writeVolatile)
+        let transport = FakeTransport { ok($0, arguments: [3, 0]) }
+        #expect(try await driver().read(mode, using: transport) == .int(3))
+        try await driver().write(.int(3), to: mode, using: transport)
+        try await driver().write(.int(0), to: mode, using: transport)
+        let sent = await transport.sent
+        #expect(sent[0].commandID == 0x84 && sent[0].transactionID == 0xFF)
+        #expect(sent[1].commandClass == 0x00 && sent[1].commandID == 0x04 && Array(sent[1].arguments.prefix(2)) == [3, 0] && sent[1].dataSize == 2)
+        #expect(sent[2].arguments[0] == 0)
+    }
+
+    @Test func deviceModeRejectsFactoryTestMode() async {
+        let mode = CapabilityDescriptor(id: "device_mode", type: .deviceMode, access: .writeVolatile)
+        let transport = FakeTransport { ok($0) }
+        await #expect(throws: DriverError.self) { try await driver().write(.int(2), to: mode, using: transport) }
+        #expect(await transport.sent.isEmpty)
+    }
 }

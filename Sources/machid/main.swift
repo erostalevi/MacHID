@@ -11,6 +11,7 @@ usage:
   machid get <vvvv:pppp> <capability>
   machid set <vvvv:pppp> brightness <0-100>
   machid set <vvvv:pppp> backlight <RRGGBB|off>
+  machid set <vvvv:pppp> device_mode <0|3>
   machid --version
 
 add --trace to get/set to print the raw protocol bytes to stderr
@@ -123,6 +124,9 @@ do {
         switch args[2] {
         case "brightness":
             guard let number = Int(args[3]) else { fail("brightness must be a whole number 0-100", code: 2) }
+            value = .int(number)
+        case "device_mode":
+            guard let number = Int(args[3]) else { fail("device_mode must be 0 (normal) or 3 (driver)", code: 2) }
             value = .int(number)
         case "backlight":
             if args[3] == "off" { value = .text("off") }

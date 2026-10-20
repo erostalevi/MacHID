@@ -34,4 +34,15 @@ public enum RazerCommands {
         RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x06,
                     arguments: [varStore, backlightLED, 0x00])
     }
+
+    /// Device mode: 0x00 normal, 0x03 driver mode. Mode 0x02 (factory test) is deliberately not offered.
+    public static func getDeviceMode() -> RazerReport {
+        RazerReport(transactionID: standardTransactionID, commandClass: 0x00, commandID: 0x84, dataSize: 0x02)
+    }
+
+    public static func setDeviceMode(_ mode: UInt8) -> RazerReport {
+        precondition(mode == 0x00 || mode == 0x03, "only normal (0) and driver (3) modes are allowed")
+        return RazerReport(transactionID: standardTransactionID, commandClass: 0x00, commandID: 0x04, dataSize: 0x02,
+                           arguments: [mode, 0x00])
+    }
 }

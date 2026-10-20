@@ -10,6 +10,8 @@ public enum CapabilityType: String, Sendable, Codable, CaseIterable {
     case battery
     case info
     case cameraControl = "camera_control"
+    /// Switches a device between its own onboard behavior and host (driver) control.
+    case deviceMode = "device_mode"
 }
 
 /// `writePersistent` touches onboard memory and always needs an explicit user action.

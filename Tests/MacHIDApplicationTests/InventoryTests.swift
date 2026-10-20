@@ -145,3 +145,11 @@ private let controllable = DeviceDefinition(
         #expect(await driver.writes.isEmpty)
     }
 }
+
+@Suite struct AllowedValuesTests {
+    @Test func rejectsValuesOutsideTheAllowedSet() throws {
+        let mode = CapabilityDescriptor(id: "device_mode", type: .deviceMode, access: .writeVolatile, parameters: .init(values: [0, 3]))
+        try DeviceControl.validate(.int(3), against: mode)
+        #expect(throws: ControlError.self) { try DeviceControl.validate(.int(2), against: mode) }
+    }
+}

@@ -71,6 +71,9 @@ public struct DeviceControl: Sendable {
         case (_, .int(let number)):
             if let low = parameters?.min, number < low { throw ControlError.outOfRange("\(number) < \(low)") }
             if let high = parameters?.max, number > high { throw ControlError.outOfRange("\(number) > \(high)") }
+            if let allowed = parameters?.values, !allowed.contains(number) {
+                throw ControlError.outOfRange("\(number) is not one of \(allowed)")
+            }
             if let step = parameters?.step, let low = parameters?.min ?? Optional(0), (number - low) % step != 0 {
                 throw ControlError.outOfRange("\(number) is not a multiple of \(step) from \(low)")
             }

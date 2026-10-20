@@ -16,7 +16,8 @@ public struct RazerModel: Sendable, Equatable {
 
 /// Razer family driver (M2 scope: firmware, backlight brightness, static color / off).
 ///
-/// Capability ids: `info` (read, text), `brightness` (0-100), `backlight` (write: color or "off").
+/// Capability ids: `info` (read, text), `brightness` (0-100), `backlight` (write: color or "off"),
+/// `device_mode` (0 normal, 3 driver; volatile).
 /// All writes use variable storage, i.e. nothing is stored in onboard memory.
 public struct RazerDriver: DeviceDriver {
     public let familyID = "razer"
@@ -38,6 +39,9 @@ public struct RazerDriver: DeviceDriver {
         case "brightness":
             let response = try await exchange(RazerCommands.getBrightness(transactionID: model.lightingTransactionID), on: transport)
             return .int(Self.percent(fromRaw: response.arguments[2]))
+        case "device_mode":
+            let response = try await exchange(RazerCommands.getDeviceMode(), on: transport)
+            return .int(Int(response.arguments[0]))
         default:
             throw DriverError.unsupportedCapability(capability.id)
         }
@@ -53,7 +57,10 @@ public struct RazerDriver: DeviceDriver {
             _ = try await exchange(RazerCommands.staticColor(color, transactionID: tid), on: transport)
         case ("backlight", .text("off")):
             _ = try await exchange(RazerCommands.effectNone(transactionID: tid), on: transport)
-        case ("brightness", _), ("backlight", _):
+        case ("device_mode", .int(let mode)):
+            guard mode == 0 || mode == 3 else { throw DriverError.invalidValue("device_mode must be 0 (normal) or 3 (driver)") }
+            _ = try await exchange(RazerCommands.setDeviceMode(UInt8(mode)), on: transport)
+        case ("brightness", _), ("backlight", _), ("device_mode", _):
             throw DriverError.invalidValue("wrong value type for '\(capability.id)'")
         default:
             throw DriverError.unsupportedCapability(capability.id)
