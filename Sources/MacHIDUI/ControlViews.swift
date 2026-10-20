@@ -22,6 +22,8 @@ struct ControlRow: View {
             Spacer()
             if case .slider = spec.kind, case .int(let value)? = device.values[spec.id] {
                 Text(verbatim: "\(value)").font(.subheadline.monospacedDigit()).foregroundStyle(.primary)
+                    .contentTransition(.numericText(value: Double(value)))
+                    .motion(\.snappy, value: value)
             }
         }
     }

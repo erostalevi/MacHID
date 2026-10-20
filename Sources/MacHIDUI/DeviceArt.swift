@@ -6,6 +6,7 @@ import MacHIDDomain
 struct DeviceArt: View {
     let category: DeviceCategory
     var accent: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -20,6 +21,7 @@ struct DeviceArt: View {
             default: Image(systemName: Titles.symbol(for: category)).font(.system(size: 90, weight: .thin)).foregroundStyle(accent)
             }
         }
+        .modifier(IdleFloat(enabled: !reduceMotion))
         .frame(height: 240)
         .animation(.smooth(duration: 0.5), value: accent)
     }
@@ -77,6 +79,22 @@ private struct CameraShape: View {
             Circle().fill(.black.opacity(0.6)).frame(width: 84, height: 84)
             Circle().strokeBorder(accent.opacity(0.9), lineWidth: 3).frame(width: 84, height: 84).shadow(color: accent, radius: 8)
             Circle().fill(accent.opacity(0.5)).frame(width: 30, height: 30)
+        }
+    }
+}
+
+/// A slow, barely visible bob so the device feels alive; off with "Reduce motion".
+private struct IdleFloat: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                content.offset(y: sin(t * 0.9) * 4).rotationEffect(.degrees(sin(t * 0.6) * 0.6))
+            }
+        } else {
+            content
         }
     }
 }

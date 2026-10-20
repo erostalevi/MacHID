@@ -17,9 +17,13 @@ public struct MenuPanelView: View {
             } else {
                 GlassGroup(spacing: 10) {
                     VStack(spacing: 10) {
-                        ForEach(model.devices) { DeviceCard(model: model, device: $0) }
+                        ForEach(model.devices) {
+                            DeviceCard(model: model, device: $0)
+                                .transition(.scale(scale: 0.94).combined(with: .opacity))
+                        }
                     }
                 }
+                .motion(\.smooth, value: model.devices.map(\.id))
             }
             if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionRow }
             footer

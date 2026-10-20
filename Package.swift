@@ -29,6 +29,8 @@ let package = Package(
         // SwiftUI models and views (menu bar panel and main window). Logic lives here so it can be tested.
         .target(name: "MacHIDUI", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
         .executableTarget(name: "MacHIDApp", dependencies: ["MacHIDUI"]),
+        // Design review tool: renders the views to PNG files offscreen.
+        .executableTarget(name: "MacHIDSnapshots", dependencies: ["MacHIDUI", "MacHIDDomain"]),
         .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
         .executableTarget(name: "machid-validate", dependencies: ["MacHIDDomain"]),
         .testTarget(name: "MacHIDDomainTests", dependencies: ["MacHIDDomain"]),

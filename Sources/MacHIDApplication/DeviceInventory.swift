@@ -5,6 +5,11 @@ public struct InventoryItem: Sendable, Codable, Equatable {
     /// Nil when no definition matches the USB ID (the device is detected but unsupported).
     public let definition: DeviceDefinition?
 
+    public init(device: DiscoveredDevice, definition: DeviceDefinition?) {
+        self.device = device
+        self.definition = definition
+    }
+
     public var isSupported: Bool { definition != nil }
 }
 

@@ -47,6 +47,14 @@ struct MacHIDApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 760, height: 660)
+        .commands {
+            CommandMenu("Device") {
+                Button("Next Device") { withAnimation(.smooth) { model.selectNextDevice(offset: 1) } }
+                    .keyboardShortcut("]", modifiers: .command)
+                Button("Previous Device") { withAnimation(.smooth) { model.selectNextDevice(offset: -1) } }
+                    .keyboardShortcut("[", modifiers: .command)
+            }
+        }
     }
 }
 

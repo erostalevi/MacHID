@@ -56,6 +56,17 @@ public final class AppModel {
 
     // MARK: Lifecycle
 
+    /// Design review only: shows sample devices without touching hardware.
+    func setPreview(devices: [DeviceEntry], selected: String?, profileName: String?) {
+        self.devices = devices
+        self.selectedDeviceID = selected
+        if let profileName, let selected, let definitionID = devices.first(where: { $0.id == selected })?.definition?.id {
+            let profile = Profile(id: "preview", name: profileName, settings: [definitionID: [:]])
+            self.profiles = [profile]
+            self.activeProfileIDs = [definitionID: profile.id]
+        }
+    }
+
     /// Loads profiles and starts watching for devices being plugged in or removed.
     public func start(pollInterval: Duration = .seconds(2)) {
         guard pollTask == nil else { return }
@@ -75,6 +86,14 @@ public final class AppModel {
 
     public var selectedDevice: DeviceEntry? {
         devices.first { $0.id == selectedDeviceID } ?? devices.first
+    }
+
+    /// Moves the selection forward or backward through the connected devices, wrapping around.
+    public func selectNextDevice(offset: Int = 1) {
+        guard !devices.isEmpty else { return }
+        let current = devices.firstIndex { $0.id == selectedDeviceID } ?? 0
+        let next = ((current + offset) % devices.count + devices.count) % devices.count
+        selectedDeviceID = devices[next].id
     }
 
     // MARK: Devices

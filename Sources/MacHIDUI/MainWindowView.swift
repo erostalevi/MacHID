@@ -7,6 +7,8 @@ public struct MainWindowView: View {
     @State private var section: ControlSection = .lighting
     @State private var savingProfile = false
     @State private var profileName = ""
+    @Namespace private var chipNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(model: AppModel) { self.model = model }
 
@@ -18,15 +20,18 @@ public struct MainWindowView: View {
                     topBar(device)
                     Spacer(minLength: 0)
                     DeviceArt(category: device.definition?.category ?? .other, accent: accent(for: device))
+                        .id(device.id)
+                        .transition(.blurReplace)
                     sectionChips(device)
                     if sections(of: device).contains(effectiveSection(device)) {
                         ControlPanel(model: model, device: device, section: effectiveSection(device))
-                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                            .id(effectiveSection(device))
+                            .transition(.blurReplace.combined(with: .offset(y: 8)))
                     }
                     Spacer(minLength: 0)
                 }
                 .padding(28)
-                .animation(.smooth, value: effectiveSection(device))
+                .motion(\.smooth, value: effectiveSection(device))
             } else {
                 emptyState
             }
@@ -38,7 +43,7 @@ public struct MainWindowView: View {
             .padding(20)
         }
         .frame(minWidth: 680, minHeight: 600)
-        .animation(.smooth, value: model.selectedDeviceID)
+        .motion(\.smooth, value: model.selectedDeviceID)
     }
 
     // MARK: Pieces
@@ -122,17 +127,33 @@ public struct MainWindowView: View {
         Task { await model.saveProfile(named: name, from: device.id) }
     }
 
+    /// One glass capsule holding the sections; the highlight slides to the selected one.
     private func sectionChips(_ device: AppModel.DeviceEntry) -> some View {
-        GlassGroup(spacing: 10) {
-            HStack(spacing: 10) {
-                ForEach(sections(of: device), id: \.self) { candidate in
-                    Button { section = candidate } label: {
-                        Label { Titles.section(candidate) } icon: { Image(systemName: Titles.symbol(for: candidate)) }
-                    }
-                    .buttonStyle(PillButtonStyle(tint: accent(for: device), selected: candidate == effectiveSection(device)))
+        let motion = Motion(reduce: reduceMotion)
+        let selected = effectiveSection(device)
+        return HStack(spacing: 4) {
+            ForEach(sections(of: device), id: \.self) { candidate in
+                Button {
+                    withAnimation(motion.snappy) { section = candidate }
+                } label: {
+                    Label { Titles.section(candidate) } icon: { Image(systemName: Titles.symbol(for: candidate)) }
+                        .font(.callout.weight(candidate == selected ? .semibold : .regular))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background {
+                            if candidate == selected {
+                                Capsule().fill(accent(for: device).opacity(0.28))
+                                    .overlay(Capsule().strokeBorder(accent(for: device).opacity(0.5), lineWidth: 1))
+                                    .matchedGeometryEffect(id: "selection", in: chipNamespace)
+                            }
+                        }
+                        .contentShape(Capsule())
                 }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(candidate == selected ? .isSelected : [])
             }
         }
+        .padding(5)
+        .glassSurface(cornerRadius: 26)
     }
 
     private var emptyState: some View {

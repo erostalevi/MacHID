@@ -173,4 +173,17 @@ private let hubDevice = DiscoveredDevice(usbId: hubID, name: "Hub")
         await model.deleteProfile(profile.id)
         #expect(model.profiles.isEmpty && model.activeProfile(for: id) == nil)
     }
+
+    @Test func selectionWrapsInBothDirections() async {
+        let (model, _, _, _) = makeModel(devices: [kbdDevice, camDevice])
+        await model.refreshDevices()
+        let first = model.devices[0].id, second = model.devices[1].id
+        #expect(model.selectedDeviceID == first)
+        model.selectNextDevice()
+        #expect(model.selectedDeviceID == second)
+        model.selectNextDevice()
+        #expect(model.selectedDeviceID == first)
+        model.selectNextDevice(offset: -1)
+        #expect(model.selectedDeviceID == second)
+    }
 }

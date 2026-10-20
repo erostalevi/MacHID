@@ -70,18 +70,59 @@ struct GlassGroup<Content: View>: View {
     }
 }
 
-/// A capsule button on a glass surface.
+/// Animations honor the system "Reduce motion" setting: they collapse to an instant change.
+struct Motion {
+    var reduce: Bool
+    var smooth: Animation { reduce ? .linear(duration: 0.01) : .smooth(duration: 0.38) }
+    var snappy: Animation { reduce ? .linear(duration: 0.01) : .snappy(duration: 0.28) }
+    var press: Animation { reduce ? .linear(duration: 0.01) : .spring(response: 0.22, dampingFraction: 0.7) }
+}
+
+extension View {
+    func motion<V: Equatable>(_ keyPath: KeyPath<Motion, Animation>, value: V) -> some View {
+        modifier(MotionModifier(keyPath: keyPath, value: value))
+    }
+}
+
+private struct MotionModifier<V: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let keyPath: KeyPath<Motion, Animation>
+    let value: V
+    func body(content: Content) -> some View {
+        content.animation(Motion(reduce: reduceMotion)[keyPath: keyPath], value: value)
+    }
+}
+
+/// A capsule button on a glass surface that lifts on hover and sinks when pressed.
 struct PillButtonStyle: ButtonStyle {
     var tint: Color?
     var selected = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.callout.weight(selected ? .semibold : .regular))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .glassSurface(cornerRadius: 20, tint: selected ? (tint ?? .accentColor) : nil, interactive: true)
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .contentShape(Capsule())
+        PillBody(configuration: configuration, tint: tint, selected: selected)
+    }
+
+    private struct PillBody: View {
+        let configuration: ButtonStyleConfiguration
+        let tint: Color?
+        let selected: Bool
+        @State private var hovering = false
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.isEnabled) private var enabled
+
+        var body: some View {
+            let motion = Motion(reduce: reduceMotion)
+            configuration.label
+                .font(.callout.weight(selected ? .semibold : .regular))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .glassSurface(cornerRadius: 20, tint: selected ? (tint ?? .accentColor) : nil, interactive: true)
+                .scaleEffect(configuration.isPressed ? 0.94 : (hovering && enabled ? 1.03 : 1))
+                .opacity(enabled ? 1 : 0.5)
+                .animation(motion.press, value: configuration.isPressed)
+                .animation(motion.snappy, value: hovering)
+                .contentShape(Capsule())
+                .onHover { hovering = $0 }
+        }
     }
 }
