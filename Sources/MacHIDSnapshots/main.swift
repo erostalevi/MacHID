@@ -31,6 +31,7 @@ func run() {
     if args.count >= 3 { setenv("MACHID_DEFINITIONS", args[2], 1) }
     try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     _ = NSApplication.shared
+    UserDefaults.standard.set(true, forKey: "onboarding.completed")   // keep the welcome card out of the window renders
     NSApp.setActivationPolicy(.prohibited)
     let backdrop = Color(nsColor: .windowBackgroundColor)
     for (name, category) in [("keyboard", DeviceCategory.keyboard), ("mouse", .mouse), ("camera", .camera)] {
@@ -44,7 +45,7 @@ func run() {
     render(PluginsView(plugins: PreviewSupport.pluginsModel()).background(backdrop), size: CGSize(width: 620, height: 700), to: out.appendingPathComponent("plugins.png"))
     render(RemapView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 560), to: out.appendingPathComponent("remap.png"))
     render(MacrosView(remap: remap).background(backdrop), size: CGSize(width: 620, height: 640), to: out.appendingPathComponent("macros.png"))
-    render(OnboardingView(remap: remap) {}.padding(20).background(backdrop), size: CGSize(width: 520, height: 400), to: out.appendingPathComponent("onboarding.png"))
+    render(ZStack { backdrop; OnboardingView(remap: remap, finish: {}) }, size: CGSize(width: 520, height: 400), to: out.appendingPathComponent("onboarding.png"))
     render(MenuPanelView(model: model, remap: remap, plugins: PreviewSupport.pluginsModel()).background(backdrop), size: CGSize(width: 340, height: 420), to: out.appendingPathComponent("menu-panel.png"))
 }
 

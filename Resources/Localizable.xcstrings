@@ -1947,6 +1947,380 @@
           }
         }
       }
+    },
+    "Welcome to MacHID": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Te damos la bienvenida a MacHID"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paso %lld de %lld"
+          }
+        }
+      }
+    },
+    "Back": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atrás"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuar"
+          }
+        }
+      }
+    },
+    "Get started": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezar"
+          }
+        }
+      }
+    },
+    "MacHID manages the settings of your mouse, keyboard and camera from one calm place.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacHID gestiona los ajustes de tu ratón, teclado y cámara desde un solo lugar."
+          }
+        }
+      }
+    },
+    "Change lighting, DPI and image controls.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia la iluminación, los DPI y los controles de imagen."
+          }
+        }
+      }
+    },
+    "Save profiles and apply them automatically per app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda perfiles y aplícalos automáticamente por app."
+          }
+        }
+      }
+    },
+    "Quick controls live in the menu bar.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los controles rápidos están en la barra de menús."
+          }
+        }
+      }
+    },
+    "Device control needs Input Monitoring so MacHID can talk to keyboards and mice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El control de dispositivos necesita Supervisión de entrada para que MacHID hable con teclados y ratones."
+          }
+        }
+      }
+    },
+    "Input Monitoring is allowed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supervisión de entrada permitida"
+          }
+        }
+      }
+    },
+    "Input Monitoring is not allowed yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supervisión de entrada aún no permitida"
+          }
+        }
+      }
+    },
+    "Allow Input Monitoring": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir Supervisión de entrada"
+          }
+        }
+      }
+    },
+    "Check again": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar de nuevo"
+          }
+        }
+      }
+    },
+    "You can skip this and allow it later; cameras work without it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puedes omitirlo y permitirlo después; las cámaras funcionan sin él."
+          }
+        }
+      }
+    },
+    "Optional: remapping and macros": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcional: reasignación y macros"
+          }
+        }
+      }
+    },
+    "Remapping keys and running macros also needs Accessibility. This is entirely optional and off by default; you can enable it later in Settings > Remap.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reasignar teclas y ejecutar macros también necesita Accesibilidad. Es totalmente opcional y está desactivado por defecto; puedes activarlo después en Ajustes > Reasignar."
+          }
+        }
+      }
+    },
+    "Allow remapping permissions": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir permisos de reasignación"
+          }
+        }
+      }
+    },
+    "You are all set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todo listo."
+          }
+        }
+      }
+    },
+    "Open this welcome again any time from Settings > General.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puedes volver a abrir esta bienvenida en Ajustes > General."
+          }
+        }
+      }
+    },
+    "Show welcome again": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar la bienvenida otra vez"
+          }
+        }
+      }
+    },
+    "Remove from the menu bar": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar de la barra de menús"
+          }
+        }
+      }
+    },
+    "Show in the menu bar": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar en la barra de menús"
+          }
+        }
+      }
+    },
+    "Stop macros": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detener macros"
+          }
+        }
+      }
+    },
+    "Needs your approval in Settings > Macros first": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero necesita tu aprobación en Ajustes > Macros"
+          }
+        }
+      }
+    },
+    "Settings: plugin updates are available": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes: hay actualizaciones de plugins"
+          }
+        }
+      }
+    },
+    "Settings, plugin updates available": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes, hay actualizaciones de plugins"
+          }
+        }
+      }
+    },
+    "Lighting mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo de iluminación"
+          }
+        }
+      }
+    },
+    "Looking for devices…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando dispositivos…"
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar"
+          }
+        }
+      }
+    },
+    "Section %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sección %lld"
+          }
+        }
+      }
+    },
+    "On": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activado"
+          }
+        }
+      }
+    },
+    "Device illustration": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ilustración del dispositivo"
+          }
+        }
+      }
+    },
+    "Shows these controls": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra estos controles"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -35,22 +35,20 @@ public struct OnboardingView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .transition(.blurReplace)
             HStack {
                 if step > 0 { Button("Back") { go(step - 1) }.buttonStyle(PillButtonStyle()) }
                 Spacer()
                 if step < lastStep {
-                    Button("Continue") { go(step + 1) }.buttonStyle(PillButtonStyle(selected: true)).keyboardShortcut(.defaultAction)
+                    Button("Continue") { go(step + 1) }.buttonStyle(PillButtonStyle())
                 } else {
-                    Button("Get started") { finish() }.buttonStyle(PillButtonStyle(selected: true)).keyboardShortcut(.defaultAction)
+                    Button("Get started") { finish() }.buttonStyle(PillButtonStyle())
                 }
             }
         }
         .padding(26)
         .frame(width: 460)
         .glassSurface(cornerRadius: 30)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Welcome to MacHID"))
+        .onAppear { inputGranted = InputMonitoringPermission.isGranted }
     }
 
     private func go(_ next: Int) {
@@ -59,7 +57,7 @@ public struct OnboardingView: View {
 
     private func line(_ symbol: String, _ text: Text) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol).frame(width: 24).foregroundStyle(.tint).accessibilityHidden(true)
+            Image(systemName: symbol).frame(width: 24).foregroundStyle(Color.accentColor).accessibilityHidden(true)
             text.fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -91,7 +89,6 @@ public struct OnboardingView: View {
             }
             Text("You can skip this and allow it later; cameras work without it.").font(.caption).foregroundStyle(.secondary)
         }
-        .onAppear { inputGranted = InputMonitoringPermission.isGranted }
     }
 
     private var remapping: some View {
