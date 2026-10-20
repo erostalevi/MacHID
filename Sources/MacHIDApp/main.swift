@@ -35,7 +35,7 @@ struct MacHIDApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuPanelView(model: model)
+            MenuPanelView(model: model, remap: remap, plugins: plugins)
         } label: {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .task {
