@@ -72,6 +72,8 @@ public struct HidppClient: Sendable {
     public func request(featureIndex: UInt8, function: UInt8, parameters: [UInt8] = []) async throws -> [UInt8] {
         let message = HidppMessage(deviceIndex: deviceIndex, featureIndex: featureIndex, function: function,
                                    softwareID: Self.softwareID, parameters: parameters)
+        // A session can stay open for a long time: forget anything left over from earlier exchanges.
+        while (try? await transport.nextInputReport(timeout: .zero)) != nil {}
         try await transport.sendOutputReport(reportID: HidppMessage.longReportID, message.encodedPayload())
 
         let deadline = ContinuousClock.now + timeout

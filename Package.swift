@@ -38,6 +38,7 @@ let package = Package(
         .testTarget(name: "MacHIDLogitechTests", dependencies: ["MacHIDLogitech", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUVCTests", dependencies: ["MacHIDUVC", "MacHIDDomain"]),
         .testTarget(name: "MacHIDUITests", dependencies: ["MacHIDUI", "MacHIDDomain", "MacHIDApplication"]),
+        .testTarget(name: "MacHIDSystemTests", dependencies: ["MacHIDSystem", "MacHIDApplication", "MacHIDDomain"]),
         .testTarget(name: "MacHIDApplicationTests", dependencies: ["MacHIDApplication", "MacHIDDomain"]),
     ]
 )

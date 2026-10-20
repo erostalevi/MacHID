@@ -3,6 +3,12 @@ import MacHIDDomain
 /// Port: opens a driver and transport for an attached device. Implemented at the composition root.
 public protocol DeviceConnector: Sendable {
     func connect(to device: DiscoveredDevice, definition: DeviceDefinition) async throws -> (driver: any DeviceDriver, transport: any Transport)
+    /// Called after a failure so a connector that keeps sessions open can drop the one for this device.
+    func discard(_ device: DiscoveredDevice) async
+}
+
+extension DeviceConnector {
+    public func discard(_ device: DiscoveredDevice) async {}
 }
 
 public enum ControlError: Error, Equatable, CustomStringConvertible {
@@ -41,14 +47,27 @@ public struct DeviceControl: Sendable {
     public func read(_ id: USBID, capability capabilityID: String) async throws -> SettingValue {
         let (device, definition, capability) = try await resolve(id, capabilityID)
         let session = try await connector.connect(to: device, definition: definition)
-        return try await session.driver.read(capability, using: session.transport)
+        do {
+            return try await session.driver.read(capability, using: session.transport)
+        } catch {
+            await connector.discard(device)
+            throw error
+        }
     }
+
+    /// Forgets any open session for a device that is gone.
+    public func discard(_ device: DiscoveredDevice) async { await connector.discard(device) }
 
     /// Limits reported by the device itself, if the driver has any for this capability.
     public func limits(_ id: USBID, capability capabilityID: String) async throws -> ValueLimits? {
         let (device, definition, capability) = try await resolve(id, capabilityID)
         let session = try await connector.connect(to: device, definition: definition)
-        return try await session.driver.limits(for: capability, using: session.transport)
+        do {
+            return try await session.driver.limits(for: capability, using: session.transport)
+        } catch {
+            await connector.discard(device)
+            throw error
+        }
     }
 
     public func write(_ id: USBID, capability capabilityID: String, value: SettingValue) async throws {
@@ -60,7 +79,12 @@ public struct DeviceControl: Sendable {
         }
         try Self.validate(value, against: capability)
         let session = try await connector.connect(to: device, definition: definition)
-        try await session.driver.write(value, to: capability, using: session.transport)
+        do {
+            try await session.driver.write(value, to: capability, using: session.transport)
+        } catch {
+            await connector.discard(device)
+            throw error
+        }
     }
 
     private func resolve(_ id: USBID, _ capabilityID: String) async throws -> (DiscoveredDevice, DeviceDefinition, CapabilityDescriptor) {

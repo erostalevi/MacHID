@@ -64,14 +64,14 @@ private let camera = DeviceDefinition(id: "cam", name: "Cam", category: .camera,
 ])
 
 @MainActor
-private func makeModel(devices: [DiscoveredDevice]) -> (AppModel, MutableEnumerator, FakeDriver, MemoryRepository) {
+private func makeModel(devices: [DiscoveredDevice], changes: AsyncStream<Void>? = nil) -> (AppModel, MutableEnumerator, FakeDriver, MemoryRepository) {
     let enumerator = MutableEnumerator(devices)
     let inventory = DeviceInventory(enumerator: enumerator, catalog: DefinitionCatalog(definitions: [keyboard, camera]))
     let driver = FakeDriver()
     let repository = MemoryRepository()
     let defaults = UserDefaults(suiteName: "machid-test-\(UUID().uuidString)")!
     let model = AppModel(inventory: inventory, control: DeviceControl(inventory: inventory, connector: FakeConnector(driver: driver)),
-                         repository: repository, defaults: defaults, writeDelay: .milliseconds(20), permissionCheck: { true })
+                         repository: repository, defaults: defaults, writeDelay: .milliseconds(20), deviceChanges: changes, permissionCheck: { true })
     return (model, enumerator, driver, repository)
 }
 
@@ -185,5 +185,20 @@ private let hubDevice = DiscoveredDevice(usbId: hubID, name: "Hub")
         #expect(model.selectedDeviceID == first)
         model.selectNextDevice(offset: -1)
         #expect(model.selectedDeviceID == second)
+    }
+
+    @Test func aChangeEventRefreshesWithoutWaitingForTheSlowPoll() async {
+        var continuation: AsyncStream<Void>.Continuation!
+        let stream = AsyncStream<Void> { continuation = $0 }
+        let (model, enumerator, _, _) = makeModel(devices: [kbdDevice], changes: stream)
+        model.start(pollInterval: .seconds(60))
+        for _ in 0..<100 where model.devices.isEmpty { try? await Task.sleep(for: .milliseconds(20)) }
+        #expect(model.devices.count == 1)
+
+        enumerator.set([kbdDevice, camDevice])
+        continuation.yield()
+        for _ in 0..<100 where model.devices.count < 2 { try? await Task.sleep(for: .milliseconds(20)) }
+        #expect(model.devices.count == 2)
+        model.stop()
     }
 }

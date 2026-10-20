@@ -4,14 +4,18 @@ import MacHIDDomain
 import MacHIDIOKit
 import MacHIDSystem
 
+@MainActor private var liveMonitor: IOKitDeviceMonitor?
+
 extension AppModel {
     /// The real thing: IOKit enumeration, real drivers, profiles in Application Support.
     @MainActor
     public static func live() -> AppModel {
         let (catalog, _) = (try? loadDefinitions()) ?? (DefinitionCatalog(definitions: []), [])
         let inventory = DeviceInventory(enumerator: IOKitDeviceEnumerator(), catalog: catalog)
-        let control = DeviceControl(inventory: inventory, connector: SystemDeviceConnector())
-        return AppModel(inventory: inventory, control: control, repository: FileProfileRepository())
+        let control = DeviceControl(inventory: inventory, connector: SessionPool(wrapping: SystemDeviceConnector()))
+        let monitor = IOKitDeviceMonitor()
+        liveMonitor = monitor   // keeps the notification port alive for the life of the app
+        return AppModel(inventory: inventory, control: control, repository: FileProfileRepository(), deviceChanges: monitor.changes)
     }
 
     /// Looks for the bundled definitions: inside the app, then an override, then the repository checkout.

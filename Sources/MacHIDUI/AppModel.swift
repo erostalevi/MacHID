@@ -39,12 +39,16 @@ public final class AppModel {
     @ObservationIgnored private let permissionCheck: @Sendable () -> Bool
     @ObservationIgnored private var pendingWrites: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var eventTask: Task<Void, Never>?
+    @ObservationIgnored private let deviceChanges: AsyncStream<Void>?
 
     private static let activeProfilesKey = "activeProfileIDs"
 
     public init(inventory: DeviceInventory, control: DeviceControl, repository: any ProfileRepository,
                 defaults: UserDefaults = .standard, writeDelay: Duration = .milliseconds(150),
+                deviceChanges: AsyncStream<Void>? = nil,
                 permissionCheck: @escaping @Sendable () -> Bool = { InputMonitoringPermission.isGranted }) {
+        self.deviceChanges = deviceChanges
         self.inventory = inventory
         self.control = control
         self.repository = repository
@@ -67,21 +71,33 @@ public final class AppModel {
         }
     }
 
-    /// Loads profiles and starts watching for devices being plugged in or removed.
-    public func start(pollInterval: Duration = .seconds(2)) {
+    /// Loads profiles and starts watching for devices being plugged in or removed. With a change stream
+    /// (IOKit notifications) the poll is only a slow safety net; without one it is the main mechanism.
+    public func start(pollInterval: Duration? = nil) {
         guard pollTask == nil else { return }
+        let interval = pollInterval ?? (deviceChanges == nil ? .seconds(2) : .seconds(30))
         pollTask = Task { [weak self] in
             await self?.reloadProfiles()
             while !Task.isCancelled {
                 await self?.refreshDevices()
-                try? await Task.sleep(for: pollInterval)
+                try? await Task.sleep(for: interval)
+            }
+        }
+        if let deviceChanges {
+            eventTask = Task { [weak self] in
+                for await _ in deviceChanges {
+                    try? await Task.sleep(for: .milliseconds(400))   // let the system finish setting the device up
+                    await self?.refreshDevices()
+                }
             }
         }
     }
 
     public func stop() {
         pollTask?.cancel()
+        eventTask?.cancel()
         pollTask = nil
+        eventTask = nil
     }
 
     public var selectedDevice: DeviceEntry? {
@@ -105,7 +121,9 @@ public final class AppModel {
 
         let incoming = Dictionary(uniqueKeysWithValues: items.map { ($0.device.usbId.description, $0) })
         let previousIDs = Set(devices.map(\.id))
+        let removed = devices.filter { incoming[$0.id] == nil }
         devices.removeAll { incoming[$0.id] == nil }
+        for entry in removed { await control.discard(entry.item.device) }
         var added: [String] = []
         for item in items where !previousIDs.contains(item.device.usbId.description) {
             let id = item.device.usbId.description
