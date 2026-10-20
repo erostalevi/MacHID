@@ -1,5 +1,7 @@
 import Foundation
+import SwiftUI
 import Observation
+import SwiftUI
 import MacHIDApplication
 import MacHIDDomain
 import MacHIDIOKit
@@ -31,6 +33,9 @@ public final class AppModel {
     public private(set) var frontmostBundleID: String?
     public private(set) var inputMonitoringGranted = true
     public var banner: String?
+    /// False until the first device scan finishes, so the window can show a loading state instead of "no devices".
+    public private(set) var hasScanned = false
+    public var selectedSection: ControlSection = .lighting
     /// Set by the app scene so the delegate and the menu can bring the window forward.
     @ObservationIgnored public var openMainWindow: (() -> Void)?
     /// Called after devices were plugged in or removed (the plugins page re-checks its recommendations).
@@ -51,15 +56,24 @@ public final class AppModel {
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private let deviceChanges: AsyncStream<Void>?
+    @ObservationIgnored private let batteryAlerts: any BatteryAlerting
+    @ObservationIgnored private let batteryInterval: Duration
+    @ObservationIgnored private var batteryTask: Task<Void, Never>?
+    @ObservationIgnored private var alertPolicy = BatteryAlertPolicy()
 
     private static let activeProfilesKey = "activeProfileIDs"
+    public static let lowBatteryAlertsKey = "lowBatteryAlerts"
 
     public init(inventory: DeviceInventory, control: DeviceControl, repository: any ProfileRepository,
                 enumerator: (any DeviceEnumerator)? = nil, connector: (any DeviceConnector)? = nil,
                 automationRepository: any AutomationRepository = MemoryAutomationRepository(),
                 defaults: UserDefaults = .standard, writeDelay: Duration = .milliseconds(150),
                 deviceChanges: AsyncStream<Void>? = nil,
+                batteryAlerts: any BatteryAlerting = UserNotificationBatteryAlerts(),
+                batteryInterval: Duration = .seconds(300),
                 permissionCheck: @escaping @Sendable () -> Bool = { InputMonitoringPermission.isGranted }) {
+        self.batteryAlerts = batteryAlerts
+        self.batteryInterval = batteryInterval
         self.deviceChanges = deviceChanges
         self.inventory = inventory
         self.control = control
@@ -79,6 +93,7 @@ public final class AppModel {
     /// Design review only: shows sample devices without touching hardware.
     func setPreview(devices: [DeviceEntry], selected: String?, profileName: String?) {
         self.devices = devices
+        self.hasScanned = true
         self.selectedDeviceID = selected
         if let profileName, let selected, let definitionID = devices.first(where: { $0.id == selected })?.definition?.id {
             let profile = Profile(id: "preview", name: profileName, settings: [definitionID: [:]])
@@ -97,7 +112,16 @@ public final class AppModel {
             await self?.reloadAutomation()
             while !Task.isCancelled {
                 await self?.refreshDevices()
+                self?.hasScanned = true
                 try? await Task.sleep(for: interval)
+            }
+        }
+        // Battery levels change slowly: read them every few minutes, and only when a device reports one.
+        batteryTask = Task { [weak self, batteryInterval] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: batteryInterval)
+                guard !Task.isCancelled else { return }
+                await self?.refreshBatteries()
             }
         }
         if let deviceChanges {
@@ -113,8 +137,35 @@ public final class AppModel {
     public func stop() {
         pollTask?.cancel()
         eventTask?.cancel()
+        batteryTask?.cancel()
+        batteryTask = nil
         pollTask = nil
         eventTask = nil
+    }
+
+    /// Sections the selected device has controls for, in display order.
+    public var availableSections: [ControlSection] {
+        guard let device = selectedDevice else { return [] }
+        return ControlSection.allCases.filter { candidate in device.specs.contains { $0.section == candidate } }
+    }
+
+    /// Menu title for the n-th section shortcut.
+    public func sectionTitle(at index: Int) -> LocalizedStringKey {
+        let sections = availableSections
+        guard sections.indices.contains(index) else { return "Section \(index + 1)" }
+        switch sections[index] {
+        case .lighting: return "Lighting"
+        case .performance: return "Performance"
+        case .image: return "Image"
+        case .advanced: return "Advanced"
+        case .info: return "Details"
+        }
+    }
+
+    /// Switches to the n-th available section (0-based); ignored when the device has fewer.
+    public func selectSection(at index: Int) {
+        let sections = availableSections
+        if sections.indices.contains(index) { selectedSection = sections[index] }
     }
 
     public var selectedDevice: DeviceEntry? {
@@ -170,9 +221,72 @@ public final class AppModel {
                 let value = try await control.read(entry.usbId, capability: spec.id)
                 update(deviceID) { $0.values[spec.id] = value }
             } catch {
-                update(deviceID) { $0.lastError = "\(spec.id): \(error)" }
+                // A sleeping wireless device can miss a battery read: that is not worth an error banner.
+                if spec.kind != .battery { update(deviceID) { $0.lastError = "\(spec.id): \(error)" } }
             }
         }
+        await checkBatteryAlert(deviceID)
+    }
+
+    // MARK: Battery
+
+    /// Battery percentage of a device, or nil when it has no battery capability or no reading yet.
+    public func batteryPercent(for deviceID: String) -> Int? {
+        guard case .battery(let percent, _)? = batteryValue(deviceID) else { return nil }
+        return percent
+    }
+
+    /// True when the battery is at 15 % or less and not charging.
+    public func isLowBattery(_ deviceID: String) -> Bool {
+        guard case .battery(let percent, let charging)? = batteryValue(deviceID) else { return false }
+        return BatteryDisplay.isLow(percent: percent, charging: charging)
+    }
+
+    /// Charging state of a device's battery, nil when unknown.
+    public func isCharging(_ deviceID: String) -> Bool? {
+        guard case .battery(_, let charging)? = batteryValue(deviceID) else { return nil }
+        return charging
+    }
+
+    private func batteryValue(_ deviceID: String) -> SettingValue? {
+        guard let entry = devices.first(where: { $0.id == deviceID }),
+              let spec = entry.specs.first(where: { $0.kind == .battery }) else { return nil }
+        return entry.values[spec.id]
+    }
+
+    /// Whether the user opted in to low-battery notifications (off by default).
+    public var lowBatteryAlertsEnabled: Bool {
+        get { defaults.bool(forKey: Self.lowBatteryAlertsKey) }
+        set { defaults.set(newValue, forKey: Self.lowBatteryAlertsKey) }
+    }
+
+    /// For a settings toggle. Turning it on asks the system for notification permission; the preference is kept
+    /// either way, but nothing is sent unless the permission was granted.
+    public var lowBatteryAlertsBinding: Binding<Bool> {
+        Binding(get: { self.lowBatteryAlertsEnabled },
+                set: { newValue in
+                    self.lowBatteryAlertsEnabled = newValue
+                    if newValue { Task { _ = await self.batteryAlerts.requestAuthorization() } }
+                })
+    }
+
+    /// Re-reads the battery of every attached device that has the capability, then checks the alert thresholds.
+    public func refreshBatteries() async {
+        for entry in devices {
+            guard let spec = entry.specs.first(where: { $0.kind == .battery }) else { continue }
+            guard let value = try? await control.read(entry.usbId, capability: spec.id) else { continue }
+            update(entry.id) { $0.values[spec.id] = value }
+            await checkBatteryAlert(entry.id)
+        }
+    }
+
+    private func checkBatteryAlert(_ deviceID: String) async {
+        guard let entry = devices.first(where: { $0.id == deviceID }),
+              case .battery(let percent, let charging)? = batteryValue(deviceID) else { return }
+        // Evaluate even when alerts are off, so turning them on later does not fire for an old reading.
+        guard let threshold = alertPolicy.threshold(for: percent, charging: charging, device: deviceID),
+              lowBatteryAlertsEnabled, await batteryAlerts.isAuthorized(), let percent else { return }
+        await batteryAlerts.notifyLowBattery(deviceName: entry.name, percent: min(percent, threshold))
     }
 
     // MARK: Changing settings

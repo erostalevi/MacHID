@@ -28,6 +28,10 @@ public enum SettingValue: Sendable, Equatable, Codable {
     case effect(LightingEffect)
     case color(RGBColor)
     case text(String)
+    /// Read-only battery reading. `percent` is nil when the device gives no usable level; `charging` nil when unknown.
+    case battery(percent: Int?, charging: Bool?)
+
+    private struct BatteryPayload: Codable { let percent: Int?; let charging: Bool? }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -35,6 +39,7 @@ public enum SettingValue: Sendable, Equatable, Codable {
         else if let value = try? container.decode(Int.self) { self = .int(value) }
         else if let value = try? container.decode(LightingEffect.self) { self = .effect(value) }
         else if let value = try? container.decode(RGBColor.self) { self = .color(value) }
+        else if let value = try? container.decode(BatteryPayload.self) { self = .battery(percent: value.percent, charging: value.charging) }
         else { self = .text(try container.decode(String.self)) }
     }
 
@@ -46,6 +51,7 @@ public enum SettingValue: Sendable, Equatable, Codable {
         case .effect(let value): try container.encode(value)
         case .color(let value): try container.encode(value)
         case .text(let value): try container.encode(value)
+        case .battery(let percent, let charging): try container.encode(BatteryPayload(percent: percent, charging: charging))
         }
     }
 }

@@ -35,7 +35,7 @@ struct MacHIDApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuPanelView(model: model)
+            MenuPanelView(model: model, remap: remap, plugins: plugins)
         } label: {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .task {
@@ -58,7 +58,7 @@ struct MacHIDApp: App {
         .menuBarExtraStyle(.window)
 
         Window("MacHID", id: "main") {
-            MainWindowView(model: model)
+            MainWindowView(model: model, remap: remap)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 760, height: 660)
@@ -69,6 +69,15 @@ struct MacHIDApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 600, height: 620)
         .commands {
+            CommandMenu("Section") {
+                ForEach(0..<5, id: \.self) { index in
+                    Button(model.sectionTitle(at: index)) {
+                        withAnimation(.snappy) { model.selectSection(at: index) }
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                    .disabled(index >= model.availableSections.count)
+                }
+            }
             CommandMenu("Device") {
                 Button("Next Device") { withAnimation(.smooth) { model.selectNextDevice(offset: 1) } }
                     .keyboardShortcut("]", modifiers: .command)

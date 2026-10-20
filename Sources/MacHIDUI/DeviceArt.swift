@@ -31,6 +31,8 @@ struct DeviceArt: View {
         }
         .modifier(IdleFloat(enabled: !reduceMotion))
         .frame(height: 240)
+        .accessibilityElement(children: artwork == nil ? .ignore : .contain)
+        .accessibilityLabel(Text("Device illustration"))
         .animation(.smooth(duration: 0.5), value: accent)
     }
 }
@@ -142,6 +144,8 @@ private struct ArtworkView: View {
                             .accessibilityElement()
                             .accessibilityLabel(Titles.control(hotspot.capabilityID))
                             .accessibilityAddTraits(.isButton)
+                            .accessibilityHint(Text("Shows these controls"))
+                            .accessibilityAction { onHotspot(hotspot.capabilityID) }
                     }
                 }
             }

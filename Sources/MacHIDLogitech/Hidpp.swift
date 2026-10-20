@@ -148,4 +148,7 @@ public enum HidppFeature {
     public static let adjustableReportRate: UInt16 = 0x8060
     public static let onboardProfiles: UInt16 = 0x8100
     public static let rgbEffects: UInt16 = 0x8071
+    public static let batteryLevelStatus: UInt16 = 0x1000
+    public static let batteryVoltage: UInt16 = 0x1001
+    public static let unifiedBattery: UInt16 = 0x1004
 }

@@ -38,7 +38,7 @@ let package = Package(
         .executableTarget(name: "MacHIDApp", dependencies: ["MacHIDUI"]),
         // Design review tool: renders the views to PNG files offscreen.
         .executableTarget(name: "MacHIDSnapshots", dependencies: ["MacHIDUI", "MacHIDDomain"]),
-        .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem"]),
+        .executableTarget(name: "machid", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem", "MacHIDQuartz"]),
         .executableTarget(name: "machid-validate", dependencies: ["MacHIDDomain"]),
         // Sandboxed host for plugin scripts (JavaScriptCore); speaks JSON over stdin/stdout and imports nothing of ours.
         .executableTarget(name: "MacHIDPluginHost"),

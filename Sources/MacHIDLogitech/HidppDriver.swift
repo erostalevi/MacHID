@@ -83,6 +83,8 @@ public struct HidppDriver: DeviceDriver {
             let periodMs = Int(try await client.request(featureIndex: index, function: 1)[0])
             guard periodMs > 0 else { throw HidppError.malformed("report period of 0") }
             return .int(1000 / periodMs)
+        case "battery":
+            return try await readBattery(client)
         case "features":
             // Diagnostic: "index:id" for every feature, e.g. "0:0000 1:0001 9:2201".
             let features = try await client.listFeatures()
@@ -127,6 +129,27 @@ public struct HidppDriver: DeviceDriver {
         default:
             throw DriverError.unsupportedCapability(capability.id)
         }
+    }
+
+    // MARK: Battery
+
+    /// Tries 0x1004 (unified), then 0x1000 (level status), then 0x1001 (voltage). Read-only.
+    private func readBattery(_ client: HidppClient) async throws -> SettingValue {
+        if let index = try await optionalFeatureIndex(client, HidppFeature.unifiedBattery) {
+            // getStatus is function 1 (Solaar: feature_request(UNIFIED_BATTERY, 0x10)).
+            return HidppBattery.unified(try await client.request(featureIndex: index, function: 1))
+        }
+        if let index = try await optionalFeatureIndex(client, HidppFeature.batteryLevelStatus) {
+            return HidppBattery.levelStatus(try await client.request(featureIndex: index, function: 0))
+        }
+        if let index = try await optionalFeatureIndex(client, HidppFeature.batteryVoltage) {
+            return HidppBattery.voltage(try await client.request(featureIndex: index, function: 0))
+        }
+        throw DriverError.unsupportedCapability("battery")
+    }
+
+    private func optionalFeatureIndex(_ client: HidppClient, _ id: UInt16) async throws -> UInt8? {
+        do { return try await client.featureIndex(for: id) } catch HidppError.featureNotFound { return nil }
     }
 
     // MARK: DPI

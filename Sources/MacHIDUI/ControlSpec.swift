@@ -11,6 +11,8 @@ public enum ControlKind: Equatable, Sendable {
     /// Host (software) control of the device's lighting or mode.
     case hostControl
     case readout
+    /// Read-only battery indicator (`SettingValue.battery`).
+    case battery
 }
 
 public enum ControlSection: String, CaseIterable, Sendable {
@@ -53,6 +55,8 @@ public struct ControlSpec: Equatable, Sendable, Identifiable {
             return ControlSpec(capability: capability, kind: .slider(min: parameters?.min ?? 0, max: parameters?.max ?? 255,
                                                                      step: parameters?.step ?? 1, deviceLimits: true),
                                section: .image, readable: true)
+        case .battery:
+            return ControlSpec(capability: capability, kind: .battery, section: .info, readable: true)
         case .deviceMode:
             return ControlSpec(capability: capability, kind: .hostControl, section: .advanced, readable: true)
         default:

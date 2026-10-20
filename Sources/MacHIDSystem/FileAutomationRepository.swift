@@ -8,8 +8,7 @@ public actor FileAutomationRepository: AutomationRepository {
     public init(url: URL = FileAutomationRepository.defaultURL) { self.url = url }
 
     public static var defaultURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MacHID", isDirectory: true).appendingPathComponent("automation.json")
+        FileRemapRepository.supportDirectory.appendingPathComponent("automation.json")
     }
 
     public func load() throws -> AutomationConfig {

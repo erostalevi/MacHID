@@ -38,6 +38,7 @@ private struct GeneralSettings: View {
     @State private var launchAtLogin = LoginItem.isEnabled
     @State private var loginError: String?
     @State private var addingRule = false
+    @AppStorage(OnboardingStore.key) private var onboardingDone = false
 
     var body: some View {
         ScrollView {
@@ -72,8 +73,10 @@ private struct GeneralSettings: View {
             if let loginError { Text(verbatim: loginError).font(.caption).foregroundStyle(.orange) }
             Toggle("Apply a device's profile when it is plugged in", isOn: Binding(
                 get: { model.automation.applyOnConnect }, set: { value in Task { await model.setApplyOnConnect(value) } }))
+            Toggle("Low battery alerts", isOn: model.lowBatteryAlertsBinding)
             Toggle("Pause automatic profiles", isOn: Binding(
                 get: { model.automation.paused }, set: { value in Task { await model.setAutomationPaused(value) } }))
+            Button("Show welcome again") { onboardingDone = false }.buttonStyle(PillButtonStyle())
         }
     }
 

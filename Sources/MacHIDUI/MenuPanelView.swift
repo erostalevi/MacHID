@@ -4,9 +4,15 @@ import MacHIDDomain
 /// The menu bar panel: connected devices with a profile switcher and the quick controls of each.
 public struct MenuPanelView: View {
     @Bindable var model: AppModel
+    var remap: RemapController?
+    var plugins: PluginsModel?
     @Environment(\.openWindow) private var openWindow
 
-    public init(model: AppModel) { self.model = model }
+    public init(model: AppModel, remap: RemapController? = nil, plugins: PluginsModel? = nil) {
+        self.model = model
+        self.remap = remap
+        self.plugins = plugins
+    }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -26,6 +32,7 @@ public struct MenuPanelView: View {
                 .motion(\.smooth, value: model.devices.map(\.id))
             }
             if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionRow }
+            if let remap { macrosSection(remap) }
             Toggle("Pause automatic profiles", isOn: Binding(
                 get: { model.automation.paused }, set: { value in Task { await model.setAutomationPaused(value) } }))
                 .toggleStyle(.switch).font(.callout)
@@ -44,6 +51,38 @@ public struct MenuPanelView: View {
         }
     }
 
+    @ViewBuilder private func macrosSection(_ remap: RemapController) -> some View {
+        let favorites = remap.favoriteMacros
+        if !favorites.isEmpty || remap.isRunning {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Macros").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    if remap.isRunning {
+                        Button { Task { await remap.stopMacros() } } label: { Label("Stop macros", systemImage: "stop.fill") }
+                            .buttonStyle(PillButtonStyle(tint: .red, selected: true))
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+                ForEach(favorites) { macro in
+                    let approved = remap.isApproved(macro)
+                    Button { Task { await remap.run(macroID: macro.id) } } label: {
+                        Label { Text(verbatim: macro.name).lineLimit(1) } icon: { Image(systemName: approved ? "play.fill" : "exclamationmark.triangle.fill") }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(PillButtonStyle())
+                    .disabled(!approved || remap.isRunning)
+                    .help(approved ? Text("Run now") : Text("Needs your approval in Settings > Macros first"))
+                    .accessibilityHint(approved ? Text("") : Text("Needs your approval in Settings > Macros first"))
+                }
+            }
+            .padding(12).glassSurface(cornerRadius: 20)
+            .motion(\.smooth, value: remap.isRunning)
+        }
+    }
+
+    private var hasUpdates: Bool { !(plugins?.updates.isEmpty ?? true) }
+
     private var permissionRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "lock.shield").foregroundStyle(.yellow)
@@ -58,9 +97,15 @@ public struct MenuPanelView: View {
         HStack {
             Button { show() } label: { Label("Open MacHID…", systemImage: "macwindow") }
                 .buttonStyle(PillButtonStyle())
-            Button { openWindow(id: "settings"); NSApplication.shared.activate() } label: { Image(systemName: "gearshape") }
+            Button { openWindow(id: "settings"); NSApplication.shared.activate() } label: {
+                Image(systemName: "gearshape")
+                    .overlay(alignment: .topTrailing) {
+                        if hasUpdates { Circle().fill(Color.red).frame(width: 8, height: 8).offset(x: 5, y: -4) }
+                    }
+            }
                 .buttonStyle(PillButtonStyle())
-                .help("Settings")
+                .help(hasUpdates ? Text("Settings: plugin updates are available") : Text("Settings"))
+                .accessibilityLabel(hasUpdates ? Text("Settings, plugin updates available") : Text("Settings"))
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(PillButtonStyle())
@@ -83,10 +128,14 @@ private struct DeviceCard: View {
             HStack(spacing: 10) {
                 Image(systemName: Titles.symbol(for: device.definition?.category ?? .other)).frame(width: 22)
                 Text(verbatim: device.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                if let percent = model.batteryPercent(for: device.id) {
+                    BatteryBadge(percent: percent, charging: model.isCharging(device.id))
+                }
                 Spacer()
                 profileMenu
             }
             ForEach(quickSpecs) { spec in quickControl(spec) }
+            if let lighting = lightingSpec { lightingMenu(lighting) }
         }
         .padding(12)
         .glassSurface(cornerRadius: 20)
@@ -115,6 +164,40 @@ private struct DeviceCard: View {
                 }
             }
             .disabled(!spec.isWritable)
+        }
+    }
+
+    private var lightingSpec: ControlSpec? {
+        device.specs.first { if case .lighting = $0.kind { return $0.isWritable }; return false }
+    }
+
+    private func lightingMenu(_ spec: ControlSpec) -> some View {
+        let modes: [String] = { if case .lighting(let modes) = spec.kind { return modes }; return [] }()
+        let current = LightingModes.mode(of: device.values[spec.id])
+        return HStack(spacing: 10) {
+            Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
+            Menu {
+                ForEach(modes, id: \.self) { mode in
+                    Button {
+                        model.set(LightingModes.value(for: mode, color: currentColor(spec)), capability: spec.id, on: device.id)
+                    } label: {
+                        if mode == current { Label { Titles.lightingMode(mode) } icon: { Image(systemName: "checkmark") } } else { Titles.lightingMode(mode) }
+                    }
+                }
+            } label: {
+                if let current { Titles.lightingMode(current) } else { Text("Lighting mode") }
+            }
+            .menuStyle(.borderlessButton).fixedSize()
+            .accessibilityLabel(Text("Lighting mode"))
+            Spacer()
+        }
+    }
+
+    private func currentColor(_ spec: ControlSpec) -> MacHIDDomain.RGBColor {
+        switch device.values[spec.id] {
+        case .color(let rgb)?: rgb
+        case .effect(let effect)? where effect.color != nil: effect.color!
+        default: MacHIDDomain.RGBColor(r: 255, g: 255, b: 255)
         }
     }
 

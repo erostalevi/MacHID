@@ -11,11 +11,14 @@ struct ControlRow: View {
         VStack(alignment: .leading, spacing: 8) {
             label
             control
-                .disabled(!spec.isWritable && spec.kind != .readout || blockedByAutomaticMode)
+                .disabled(!spec.isWritable && !isDisplayOnly || blockedByAutomaticMode)
         }
-        .opacity((spec.isWritable || spec.kind == .readout) && !blockedByAutomaticMode ? 1 : 0.5)
+        .opacity((spec.isWritable || isDisplayOnly) && !blockedByAutomaticMode ? 1 : 0.5)
         .motion(\.snappy, value: blockedByAutomaticMode)
     }
+
+    /// Readouts and the battery indicator are read-only but not "unavailable": they are shown at full strength.
+    private var isDisplayOnly: Bool { spec.kind == .readout || spec.kind == .battery }
 
     private var label: some View {
         HStack {
@@ -38,12 +41,15 @@ struct ControlRow: View {
                 EmptyView()
             }
             .labelsHidden().toggleStyle(.switch)
+            .accessibilityLabel(Titles.control(spec.id))
+            .accessibilityValue(currentInt == 1 ? Text("On") : Text("Off"))
         case .choice(let values):
             Picker(selection: Binding(get: { currentInt ?? values.first ?? 0 },
                                       set: { model.set(.int($0), capability: spec.id, on: device.id) })) {
                 ForEach(values, id: \.self) { Titles.choice($0, control: spec.id).tag($0) }
             } label: { EmptyView() }
             .labelsHidden().pickerStyle(.segmented)
+            .accessibilityLabel(Titles.control(spec.id))
         case .lighting(let modes):
             LightingControl(modes: modes, value: device.values[spec.id]) {
                 model.set($0, capability: spec.id, on: device.id)
@@ -55,6 +61,13 @@ struct ControlRow: View {
                 Text("Keep lighting under MacHID control").font(.callout)
             }
             .toggleStyle(.switch)
+            .accessibilityValue((currentInt ?? 0) != 0 ? Text("On") : Text("Off"))
+        case .battery:
+            if case .battery(let percent, let charging)? = device.values[spec.id] {
+                BatteryBadge(percent: percent, charging: charging)
+            } else {
+                Text("Not available").font(.callout).foregroundStyle(.tertiary)
+            }
         case .readout:
             if case .text(let text)? = device.values[spec.id] {
                 Text(verbatim: text).font(.callout).foregroundStyle(.primary).textSelection(.enabled)
@@ -71,6 +84,8 @@ struct ControlRow: View {
                                      set: { model.set(.int(Int($0.rounded())), capability: spec.id, on: device.id) }),
                       in: Double(low)...Double(Swift.max(high, low + 1)), step: Double(Swift.max(stride, 1)))
             .disabled(deviceLimits && limits == nil && device.values[spec.id] == nil)
+            .accessibilityLabel(Titles.control(spec.id))
+            .accessibilityValue(Text(verbatim: "\(currentInt ?? low)"))
     }
 
     private var currentInt: Int? {
@@ -111,6 +126,7 @@ private struct LightingControl: View {
                         Button { select(mode, color: swatch) } label: {
                             Circle().fill(swatch).frame(width: 24, height: 24)
                                 .overlay(Circle().strokeBorder(.white.opacity(0.6), lineWidth: 1))
+                                .overlay { if swatch == color { Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(.black.opacity(0.7)) } }
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(Text(verbatim: "\(swatch.description)"))
@@ -137,6 +153,7 @@ private struct LightingControl: View {
                     ForEach(modes, id: \.self) { candidate in
                         Button { select(candidate, color: color) } label: { Titles.lightingMode(candidate) }
                             .buttonStyle(PillButtonStyle(selected: candidate == mode))
+                            .accessibilityAddTraits(candidate == mode ? .isSelected : [])
                     }
                 }
             }

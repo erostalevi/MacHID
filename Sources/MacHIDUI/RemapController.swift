@@ -39,6 +39,11 @@ public final class RemapController {
     public private(set) var isActive = false
     public private(set) var recentRuns: [MacroLogEntry] = []
     public var banner: String?
+    public private(set) var isRunning = false
+    /// Macros pinned to the menu bar panel; kept in UserDefaults.
+    public private(set) var favoriteMacroIDs: [String] = UserDefaults.standard.stringArray(forKey: RemapController.favoritesKey) ?? []
+    static let favoritesKey = "macros.favorites"
+    private var runningCount = 0
 
     @ObservationIgnored private let repository: any RemapRepository
     @ObservationIgnored private let runner: MacroRunner
@@ -203,11 +208,24 @@ public final class RemapController {
 
     public func run(macroID: String) async {
         guard let macro = config.macro(id: macroID) else { return }
+        runningCount += 1
+        isRunning = true
+        defer { runningCount -= 1; isRunning = runningCount > 0 }
         let outcome = await runner.run(macro, shellMacrosEnabled: config.shellMacrosEnabled)
         recentRuns = await logReader()
         if case .refused(let reason) = outcome { banner = "“\(macro.name)” did not run: \(Self.describe(reason))" }
         if case .failed(let message) = outcome { banner = "“\(macro.name)” stopped: \(message)" }
     }
+
+    public func toggleFavorite(_ macroID: String) {
+        if let index = favoriteMacroIDs.firstIndex(of: macroID) { favoriteMacroIDs.remove(at: index) } else { favoriteMacroIDs.append(macroID) }
+        UserDefaults.standard.set(favoriteMacroIDs, forKey: Self.favoritesKey)
+    }
+
+    public func isFavorite(_ macroID: String) -> Bool { favoriteMacroIDs.contains(macroID) }
+
+    /// Favorites that still exist, in the order they were starred.
+    public var favoriteMacros: [Macro] { favoriteMacroIDs.compactMap { config.macro(id: $0) } }
 
     public func stopMacros() async { await runner.cancelAll() }
 

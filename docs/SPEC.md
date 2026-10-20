@@ -331,3 +331,25 @@ Panel de cristal compacto (no un menú de texto clásico), con:
 ### 19.6 Pruebas de UI
 - Snapshots de las vistas principales en claro/oscuro, con "Reducir transparencia" y con cada camino (Liquid Glass y Material).
 - Pruebas de accesibilidad automáticas más una revisión manual con VoiceOver.
+
+## 20. Estado de implementación (actualizado)
+
+| Área | Estado |
+|---|---|
+| Dominio, puertos, definiciones, esquemas | Hecho |
+| Drivers: Razer (efectos, brillo, modo driver), Logitech HID++ 2.0 (DPI, luces, sondeo), UVC (imagen y exposición) | Hecho; probado en hardware: lecturas, DPI, brillo, color/modo driver (Razer) y luces del G203. Sin probar en hardware: efectos nuevos, sondeo y exposición |
+| App de barra de menú y ventana (Liquid Glass con alternativa), dibujos SVG con puntos activos | Hecho; revisión visual hecha por el usuario en M4 |
+| Perfiles, reglas por app, reaplicar al conectar, pausa | Hecho (probado con simulados) |
+| Remapeo y macros con aprobación | Hecho; **tap de eventos sin probar con eventos reales** |
+| Plugins solo de datos, registro firmado, autodetección, actualizaciones | Hecho; sin probar contra un registro real (faltan las claves) |
+| Plugins con código (JavaScriptCore aislado) | En desarrollo |
+| Auto-actualización de la app (Sparkle) y workflows de release | Hecho; sin ejecutar con secretos |
+| Telemetría opt-in | Pendiente: solo exportación local de diagnóstico; el colector sigue sin decidirse |
+| Batería | En desarrollo (sin hardware inalámbrico para probar) |
+
+### Límites conocidos y aceptados (resultado de la revisión de seguridad)
+- La aprobación de una macro es un SHA-256 guardado junto a la macro, sin secreto: un proceso del mismo usuario puede escribir una macro y su huella. Es una limitación honesta de la fase actual (mitigación futura: HMAC con clave en el llavero).
+- `ElevationGuard` es orientativo; el control real es que el usuario lea el comando completo al aprobar.
+- Un registro de plugins válido y firmado pero antiguo se rechaza por número de secuencia y fecha de emisión (los añade el workflow al publicar); no hay protección si el atacante controla además la caché local.
+- La confianza en el registro equivale al acceso de escritura al repositorio más la configuración del entorno `release` en GitHub (revisores requeridos y restricción de ramas: configurar).
+- Los permisos declarados por un plugin de datos se muestran al usuario pero no se aplican a los drivers incluidos: un plugin puede asociar un driver a cualquier USB ID que declare su manifest.

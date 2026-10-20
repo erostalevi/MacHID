@@ -27,7 +27,12 @@ machid get 046d:c092 dpi
 machid set 046d:c092 dpi 1600
 machid set 1532:0257 backlight spectrum        # or a color RRGGBB, off, reactive:FF0000 ...
 machid get 046d:094c brightness --trace        # shows the raw protocol bytes
+machid profile apply "Gaming" --device 046d:c092
+machid macro run "Open notes"                  # refused unless approved in the app
+machid doctor                                  # permissions, devices, files
+machid diagnostics export report.json          # redacted
 ```
+All commands, options and exit codes: [docs/CLI.md](docs/CLI.md).
 
 ## Layout
 ```
