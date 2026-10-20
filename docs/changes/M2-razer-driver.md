@@ -24,14 +24,12 @@ Driver de la familia Razer con transporte HID de reportes feature, y comandos de
 - `backlight` no es legible (el protocolo no permite leer el efecto actual), por eso no se puede restaurar el efecto anterior después de un `set`.
 - El transporte no abre el dispositivo hasta que el driver lo necesita; M1 sigue sin abrir nada.
 
-## Estado de la validación en hardware: PENDIENTE
-`machid get 1532:0257 info` falla con `open HID interface was refused (0xe00002e2)`: macOS exige el permiso **Input Monitoring** al proceso que abre la interfaz. Es un ajuste de seguridad del sistema; debe concederlo el usuario al programa que ejecuta el comando (Terminal o la app de Claude). Hasta entonces el driver solo está probado con un dispositivo simulado.
+## Estado de la validación en hardware
+Ejecutado por el usuario en Terminal.app con Input Monitoring concedido (desde mi proceso la apertura sigue rechazada con `0xe00002e2`, porque el permiso es del programa anfitrión):
+- `machid get 1532:0257 info` → `v1.12` (exit 0).
+- `machid get 1532:0257 brightness` → `100` (exit 0).
 
-Verificación recomendada, en orden (la 1 y 2 son solo lectura):
-1. `machid get 1532:0257 info` → firmware, p. ej. `v1.x`.
-2. `machid get 1532:0257 brightness` → porcentaje actual.
-3. `machid set 1532:0257 brightness <el mismo valor>` → sin cambio visible.
-4. `machid set 1532:0257 backlight 00FF00`, luego `off`. Cambia el efecto actual; no se puede restaurar por software hasta que exista un perfil guardado.
+Esto confirma en un Huntsman Mini real: selección de interfaz por `MaxFeatureReportSize == 90`, envío y lectura de reportes feature de 90 bytes sin ID, CRC, y respuesta correcta a firmware y brillo. **Pendiente**: las escrituras (`set brightness` con el mismo valor, luego color/`off`), que no se han ejecutado en el dispositivo. La conversión 0-100 ↔ 0-255 se confirma de forma indirecta (255 se lee como 100).
 
 ## Riesgos y pendientes
 - Si el firmware responde distinto en macOS (tamaño de reporte o ID de reporte), habrá que ajustar `IOKitHIDTransport` (por ejemplo, si el reporte debe llevar el ID 0 como primer byte).
@@ -41,4 +39,4 @@ Verificación recomendada, en orden (la 1 y 2 son solo lectura):
 
 ## Pruebas
 - Ejecutadas: 42 pruebas unitarias pasan (codec, CRC con vector de la documentación, reintentos, errores, validación de `DeviceControl`).
-- No ejecutadas: cualquier prueba contra el teclado real (bloqueada por el permiso).
+- Hardware: lecturas de firmware y brillo correctas; escrituras pendientes (ver arriba).

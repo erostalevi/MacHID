@@ -23,12 +23,15 @@ Preparar la familia Logitech de forma segura: descubrir cómo habla el G203 y co
 - DPI: función 2 de ADJUSTABLE_DPI (`getSensorDpi`, respuesta `[sensor, dpi BE16, dpi por defecto BE16]`). Está tomada de la documentación pública de libratbag/Solaar de memoria y **no está verificada contra el dispositivo**; por eso es solo lectura.
 - Sin escrituras en esta fase: cumple SPEC §9 (solo lectura primero).
 
+## Validación en hardware
+Ejecutado por el usuario en Terminal.app: `machid get 046d:c092 info` → `HID++ 4.2` y `machid get 046d:c092 dpi` → `3200` (ambos exit 0). Quedan confirmados en un G203 real: la interfaz (salida de 20 bytes), el reporte largo 0x11 con índice 0xFF, el ping de IRoot, el descubrimiento de feature 0x2201 y la lectura de DPI. Las escrituras siguen sin implementar.
+
 ## Riesgos y pendientes
-- **Sin validación en hardware** (Input Monitoring sigue pendiente). Posibles ajustes: ID de reporte o relleno al enviar, formato de entrada en el callback (se quita el ID si viene duplicado), y selección de interfaz.
+- ~~Sin validación en hardware~~ (resuelto para lecturas). Posibles ajustes: ID de reporte o relleno al enviar, formato de entrada en el callback (se quita el ID si viene duplicado), y selección de interfaz.
 - Abrir la interfaz de teclado del mouse puede requerir Input Monitoring y competir con el sistema; revisar al probar.
 - Luz del G203: efectos vía 0x8070/0x8071 o el comando propietario (`0x3C` con índice 0x0E) por confirmar con el descubrimiento de features en el dispositivo real.
 - **M3b pendiente**: cámara UVC (Brio 100) y escrituras Logitech.
 
 ## Pruebas
 - Ejecutadas: 55 pruebas unitarias pasan (Razer 15, Logitech 13, dominio 17, aplicación 10) y los validadores de definiciones.
-- Recomendadas, en orden y solo lectura: `machid get 046d:c092 info`, luego `machid get 046d:c092 dpi`.
+- Hardware: `info` y `dpi` correctos en un G203 real.
