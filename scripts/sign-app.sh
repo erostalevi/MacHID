@@ -22,6 +22,11 @@ PLIST
 
 sign() {
   if [ "$IDENTITY" = "-" ]; then codesign --force --sign - --timestamp=none "$@"
+  elif security find-identity -v -p codesigning | grep -F "$IDENTITY" | grep -q "Developer ID Application"; then
+    codesign --force --sign "$IDENTITY" --options runtime --timestamp "$@"
+  elif [[ "$IDENTITY" =~ ^[0-9A-Fa-f]{40}$ ]] || [[ "$IDENTITY" == Apple\ Development* ]]; then
+    # Development certificates cannot be notarized; no secure timestamp needed, keeps builds offline-capable.
+    codesign --force --sign "$IDENTITY" --options runtime --timestamp=none "$@"
   else codesign --force --sign "$IDENTITY" --options runtime --timestamp "$@"; fi
 }
 SP="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
