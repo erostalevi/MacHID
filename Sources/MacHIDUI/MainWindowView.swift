@@ -17,7 +17,7 @@ public struct MainWindowView: View {
             if let device = model.selectedDevice {
                 HStack(spacing: 0) {
                     stage(device)
-                    Rectangle().fill(.white.opacity(0.10)).frame(width: 1).padding(.vertical, 18)
+                    Rectangle().fill(Color.primary.opacity(0.10)).frame(width: 1).padding(.vertical, 18)
                     DeviceSidebar(model: model, device: device, remap: remap)
                 }
             } else if !model.hasScanned {
@@ -27,7 +27,7 @@ public struct MainWindowView: View {
             }
             if !onboardingDone {
                 Color.black.opacity(0.28)
-                OnboardingView(remap: remap) { withAnimation(Motion(reduce: reduceMotion).smooth) { onboardingDone = true } }
+                OnboardingView(remap: remap, model: model) { withAnimation(Motion(reduce: reduceMotion).smooth) { onboardingDone = true } }
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
             notices

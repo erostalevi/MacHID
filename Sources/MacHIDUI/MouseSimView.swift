@@ -74,7 +74,6 @@ struct MouseSimView: View {
             }
             .frame(width: width, height: height)
             .shadow(color: .black.opacity(0.25), radius: 24, y: 14)
-            .overlay(alignment: .topTrailing) { calloutLayer }
         }
         .frame(width: 420, height: 440)
         .accessibilityElement(children: .contain)
@@ -113,17 +112,6 @@ struct MouseSimView: View {
 
     private func title(_ id: String) -> String { Self.g203.first { $0.id == id }?.title ?? id }
 
-    /// The name of the hovered button, floating beside the mouse.
-    @ViewBuilder private var calloutLayer: some View {
-        if let id = hovered {
-            Text(verbatim: NSLocalizedString(title(id), comment: ""))
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .flatSurface(cornerRadius: 10)
-                .offset(x: 70, y: 0)
-                .transition(.opacity)
-        }
-    }
 }
 
 /// Hover, press and click handling shared by the hotspots.
@@ -140,6 +128,7 @@ struct Hotspot: ViewModifier {
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { _ in pressed = id }
                 .onEnded { _ in pressed = nil; onSelect(id) })
+            .help(Text(LocalizedStringKey(title)))
             .accessibilityElement()
             .accessibilityLabel(Text(LocalizedStringKey(title)))
             .accessibilityAddTraits(.isButton)

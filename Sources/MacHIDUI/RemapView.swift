@@ -179,8 +179,8 @@ struct SettingsCard<Content: View>: View {
             title.font(.headline)
             content
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassSurface(cornerRadius: 24)
+        .flatSurface(cornerRadius: Theme.cardRadius)
     }
 }

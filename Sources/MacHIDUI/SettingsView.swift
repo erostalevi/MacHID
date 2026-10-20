@@ -16,19 +16,75 @@ public struct SettingsView: View {
         self.updater = updater
     }
 
-    public var body: some View {
-        TabView {
-            GeneralSettings(model: model, updater: updater)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            RemapView(remap: remap)
-                .tabItem { Label("Remap", systemImage: "keyboard") }
-            MacrosView(remap: remap)
-                .tabItem { Label("Macros", systemImage: "play.rectangle") }
-            PluginsView(plugins: plugins)
-                .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
+    enum Page: String, CaseIterable, Identifiable {
+        case general, remap, macros, plugins
+        var id: String { rawValue }
+        var symbol: String {
+            switch self {
+            case .general: "gearshape"
+            case .remap: "keyboard"
+            case .macros: "play.rectangle"
+            case .plugins: "puzzlepiece.extension"
+            }
         }
-        .frame(minWidth: 620, minHeight: 560)
-        .background(.background)
+        var title: Text {
+            switch self {
+            case .general: Text("General")
+            case .remap: Text("Remap")
+            case .macros: Text("Macros")
+            case .plugins: Text("Plugins")
+            }
+        }
+    }
+
+    @State private var page: Page = .general
+    @Namespace private var pageSpace
+
+    public var body: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Settings").font(.title2.weight(.semibold)).padding(.horizontal, 12).padding(.bottom, 10)
+                ForEach(Page.allCases) { candidate in
+                    Button { withAnimation(.snappy(duration: 0.25)) { page = candidate } } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: candidate.symbol).frame(width: 20)
+                            candidate.title
+                            Spacer()
+                            if candidate == .plugins, !(plugins.updates.isEmpty) { Circle().fill(.red).frame(width: 7, height: 7) }
+                        }
+                        .font(.callout.weight(candidate == page ? .semibold : .regular))
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background {
+                            if candidate == page {
+                                RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous).fill(Color.accentColor.opacity(0.22))
+                                    .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous).strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1))
+                                    .matchedGeometryEffect(id: "page", in: pageSpace)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .padding(.top, 44).padding(.horizontal, 14).padding(.bottom, 16)
+            .frame(width: 210)
+            Rectangle().fill(Color.primary.opacity(0.10)).frame(width: 1).padding(.vertical, 18)
+            Group {
+                switch page {
+                case .general: GeneralSettings(model: model, updater: updater)
+                case .remap: RemapView(remap: remap)
+                case .macros: MacrosView(remap: remap)
+                case .plugins: PluginsView(plugins: plugins)
+                }
+            }
+            .id(page)
+            .transition(.opacity)
+            .padding(.top, 28)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(width: 880, height: 640)
+        .glassPanelWindow()
     }
 }
 
@@ -59,7 +115,7 @@ private struct GeneralSettings: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassSurface(cornerRadius: 24)
+        .flatSurface(cornerRadius: Theme.cardRadius)
     }
 
     // MARK: Sections

@@ -260,6 +260,26 @@ public final class AppModel {
         await checkBatteryAlert(deviceID)
     }
 
+    // MARK: Matching lighting
+
+    /// Copies the lighting color of one device to every other device that can show a static color.
+    public func syncLighting(from deviceID: String) {
+        guard let source = devices.first(where: { $0.id == deviceID }),
+              let sourceSpec = source.specs.first(where: { if case .lighting = $0.kind { true } else { false } }) else { return }
+        var color: MacHIDDomain.RGBColor?
+        switch source.values[sourceSpec.id] {
+        case .color(let c)?: color = c
+        case .effect(let e)?: color = e.color
+        default: break
+        }
+        guard let color else { banner = String(localized: "Pick a color first, then match the other devices."); return }
+        for other in devices where other.id != deviceID {
+            guard let spec = other.specs.first(where: { if case .lighting(let modes, _) = $0.kind { modes.contains("static") } else { false } }) else { continue }
+            if perKeyActive.contains(other.id) { setPerKey(false, for: other.id) }
+            set(.color(color), capability: spec.id, on: other.id)
+        }
+    }
+
     // MARK: Per-key lighting
 
     private func keyLightingSpec(_ entry: DeviceEntry) -> ControlSpec? { entry.specs.first { if case .keyLighting = $0.kind { true } else { false } } }

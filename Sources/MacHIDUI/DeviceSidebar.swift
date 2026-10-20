@@ -59,7 +59,7 @@ struct DeviceSidebar: View {
             }
         }
         .padding(3)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: Theme.chipRadius + 3, style: .continuous))
+        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Theme.chipRadius + 3, style: .continuous))
     }
 
     @Namespace private var tabSpace
@@ -84,6 +84,27 @@ struct SpecsPanel: View {
     let device: AppModel.DeviceEntry
     let section: ControlSection
 
+    private struct Block { let id: String; let title: Text?; let specs: [ControlSpec] }
+
+    /// Specs that share a group go on one card; the rest get a card each.
+    private func blocks(of specs: [ControlSpec], hidingEffects: Bool) -> [Block] {
+        var result: [Block] = []
+        for spec in specs {
+            if case .keyLighting = spec.kind { continue }
+            if hidingEffects, case .lighting = spec.kind { continue }
+            if let key = spec.group {
+                if let index = result.firstIndex(where: { $0.id == key }) {
+                    result[index] = Block(id: key, title: result[index].title, specs: result[index].specs + [spec])
+                } else {
+                    result.append(Block(id: key, title: Titles.group(key), specs: [spec]))
+                }
+            } else {
+                result.append(Block(id: spec.id, title: nil, specs: [spec]))
+            }
+        }
+        return result
+    }
+
     var body: some View {
         let specs = device.specs.filter { $0.section == section }
         let hasKeys = section == .lighting && specs.contains { if case .keyLighting = $0.kind { true } else { false } }
@@ -98,10 +119,15 @@ struct SpecsPanel: View {
             if hasKeys && painting {
                 PerKeyCard(model: model, device: device)
             }
-            ForEach(specs) { spec in
-                if case .keyLighting = spec.kind { EmptyView() }
-                else if hasKeys && painting && spec.section == .lighting, case .lighting = spec.kind { EmptyView() }
-                else { Card { ControlRow(model: model, device: device, spec: spec) } }
+            ForEach(blocks(of: specs, hidingEffects: hasKeys && painting), id: \.id) { block in
+                Card(title: block.title) {
+                    ForEach(block.specs) { spec in ControlRow(model: model, device: device, spec: spec) }
+                }
+            }
+            if section == .lighting, model.devices.filter({ $0.specs.contains { if case .lighting = $0.kind { true } else { false } } }).count > 1 {
+                Button { model.syncLighting(from: device.id) } label: { Label("Match other devices", systemImage: "link") }
+                    .buttonStyle(PillButtonStyle())
+                    .help("Use this color on every other device with lighting")
             }
             if let error = device.lastError {
                 Label { Text(verbatim: error).font(.caption) } icon: { Image(systemName: "exclamationmark.triangle") }

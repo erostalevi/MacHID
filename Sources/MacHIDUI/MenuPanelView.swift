@@ -18,6 +18,7 @@ public struct MenuPanelView: View {
         VStack(alignment: .leading, spacing: Theme.gap - 2) {
             if let device = model.selectedDevice {
                 header(device)
+                if model.devices.count > 1 { switcher }
                 DeviceCard(model: model, device: device)
                     .id(device.id)
                     .transition(.opacity)
@@ -53,23 +54,31 @@ public struct MenuPanelView: View {
                 if let percent = model.batteryPercent(for: device.id) { BatteryBadge(percent: percent, charging: model.isCharging(device.id)) }
                 else { Text("Connected").font(.caption).foregroundStyle(.secondary) }
             }
-            Spacer()
-            if model.devices.count > 1 {
-                HStack(spacing: 2) {
-                    ForEach(model.devices) { entry in
-                        Button { model.selectedDeviceID = entry.id } label: {
-                            Image(systemName: Titles.symbol(for: entry.category))
-                                .font(.system(size: 12)).frame(width: 28, height: 26)
-                                .foregroundStyle(entry.id == device.id ? AnyShapeStyle(entry.accent) : AnyShapeStyle(.secondary))
-                                .background(entry.id == device.id ? entry.accent.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .contentShape(Rectangle())
+        }
+    }
+
+    /// Same device switcher as the window's dock.
+    private var switcher: some View {
+        HStack(spacing: 4) {
+            ForEach(model.devices) { entry in
+                let active = entry.id == model.selectedDevice?.id
+                Button { model.selectedDeviceID = entry.id } label: {
+                    Image(systemName: Titles.symbol(for: entry.category))
+                        .font(.system(size: 13, weight: active ? .semibold : .regular))
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                        .foregroundStyle(active ? AnyShapeStyle(entry.accent) : AnyShapeStyle(.secondary))
+                        .background {
+                            if active {
+                                RoundedRectangle(cornerRadius: Theme.chipRadius - 3, style: .continuous).fill(entry.accent.opacity(0.22))
+                                    .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius - 3, style: .continuous).strokeBorder(entry.accent.opacity(0.45), lineWidth: 1))
+                            }
                         }
-                        .buttonStyle(.plain).help(Text(verbatim: entry.name)).accessibilityLabel(Text(verbatim: entry.name))
-                    }
+                        .contentShape(Rectangle())
                 }
-                .padding(2).background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .buttonStyle(.plain).help(Text(verbatim: entry.name)).accessibilityLabel(Text(verbatim: entry.name))
             }
         }
+        .padding(3).background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous))
     }
 
     private func remapRow(_ remap: RemapController) -> some View {
@@ -175,6 +184,14 @@ private struct DeviceCard: View {
                 profileMenu
             }
             ForEach(quickSpecs) { spec in quickControl(spec) }
+            if device.specs.contains(where: { if case .dpiStages = $0.kind { true } else { false } }) {
+                HStack(spacing: 10) {
+                    Text("DPI presets").font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+                    Spacer()
+                    Button { model.cycleDPI(for: device.id) } label: { Label("Next", systemImage: "arrow.triangle.2.circlepath") }
+                        .buttonStyle(PillButtonStyle())
+                }
+            }
             if let lighting = lightingSpec { lightingMenu(lighting) }
         }
         .padding(14).flatSurface(cornerRadius: Theme.cardRadius)

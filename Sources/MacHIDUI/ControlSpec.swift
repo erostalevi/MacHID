@@ -80,6 +80,17 @@ public struct ControlSpec: Equatable, Sendable, Identifiable {
         definition.capabilities.compactMap(make(for:))
     }
 
+    /// Controls that share a card in the sidebar; nil means the control has a card of its own.
+    public var group: String? {
+        switch id {
+        case "brightness" where section == .image, "contrast", "saturation", "sharpness": "picture"
+        case "white_balance_auto", "white_balance_temperature": "white_balance"
+        case "exposure_auto", "exposure_time", "gain", "backlight_compensation": "exposure"
+        case "power_line_frequency": "exposure"
+        default: nil
+        }
+    }
+
     public var isWritable: Bool { capability.access != .read }
 
     /// A manual control that the device ignores while an automatic one is on (e.g. exposure time under auto exposure).

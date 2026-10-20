@@ -74,6 +74,15 @@ enum Titles {
         }
     }
 
+    static func group(_ key: String) -> Text {
+        switch key {
+        case "picture": Text("Picture")
+        case "white_balance": Text("White balance")
+        case "exposure": Text("Exposure")
+        default: Text(verbatim: humanize(key))
+        }
+    }
+
     static func direction(_ name: String) -> Text {
         switch name {
         case "left_to_right": Text("Left to right")

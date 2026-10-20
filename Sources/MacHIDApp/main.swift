@@ -66,8 +66,8 @@ struct MacHIDApp: App {
         Window("Settings", id: "settings") {
             SettingsView(model: model, remap: remap, plugins: plugins, updater: updater)
         }
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 600, height: 620)
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
         .commands {
             CommandMenu("Section") {
                 ForEach(0..<6, id: \.self) { index in

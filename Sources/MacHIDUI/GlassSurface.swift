@@ -57,8 +57,8 @@ struct FlatSurface: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
             .background(reduceTransparency ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
-                                           : AnyShapeStyle((tint ?? .white).opacity(tint == nil ? 0.10 : 0.28)), in: shape)
-            .overlay(shape.strokeBorder(.white.opacity(0.14), lineWidth: 1))
+                                           : AnyShapeStyle(tint.map { $0.opacity(0.28) } ?? Color.primary.opacity(0.07)), in: shape)
+            .overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
     }
 }
 
