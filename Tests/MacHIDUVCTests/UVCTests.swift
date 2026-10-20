@@ -81,7 +81,7 @@ private func capability(_ id: String) -> CapabilityDescriptor { CapabilityDescri
     @Test func listsSupportedControlsFromTheBitmap() async throws {
         let value = try await UVCDriver().read(CapabilityDescriptor(id: "info", type: .info, access: .read),
                                                using: FakeCamera { _, _ in [] })
-        #expect(value == .text("brightness contrast saturation sharpness white_balance_temperature backlight_compensation gain power_line_frequency white_balance_auto"))
+        #expect(value == .text("brightness contrast saturation sharpness white_balance_temperature backlight_compensation gain power_line_frequency white_balance_auto exposure_auto exposure_time"))
     }
 
     @Test func readsSignedBrightnessWithCorrectAddressing() async throws {
@@ -169,5 +169,58 @@ private func capability(_ id: String) -> CapabilityDescriptor { CapabilityDescri
         let camera = FakeCamera { _, _ in [] }
         #expect(try await UVCDriver().limits(for: capability("white_balance_auto"), using: camera) == nil)
         #expect(try await UVCDriver().limits(for: capability("power_line_frequency"), using: camera) == nil)
+    }
+}
+
+
+@Suite struct ExposureTests {
+    /// Camera terminal is unit 1 on the Brio; AE mode GET_RES lists supported modes (manual + aperture priority = 0x09).
+    private func camera(mode: Int = 8, modes: [UInt8] = [0x09]) -> FakeCamera {
+        FakeCamera { request, value in
+            switch (request, value) {
+            case (0x81, 0x0200): [UInt8(mode)]
+            case (0x84, 0x0200): modes
+            case (0x82, 0x0400): [0x01, 0x00, 0x00, 0x00]          // min 1
+            case (0x83, 0x0400): [0x40, 0x0D, 0x03, 0x00]          // max 200000 (20 s)
+            case (0x84, 0x0400): [0x01, 0x00, 0x00, 0x00]
+            case (0x81, 0x0400): [0xF4, 0x01, 0x00, 0x00]          // 500
+            default: []
+            }
+        }
+    }
+
+    @Test func autoExposureReadsAsAFlag() async throws {
+        #expect(try await UVCDriver().read(capability("exposure_auto"), using: camera(mode: 8)) == .int(1))
+        #expect(try await UVCDriver().read(capability("exposure_auto"), using: camera(mode: 1)) == .int(0))
+    }
+
+    @Test func turningAutoOnPicksASupportedAutomaticMode() async throws {
+        let transport = camera(modes: [0x09])
+        try await UVCDriver().write(.int(1), to: capability("exposure_auto"), using: transport)
+        let write = try #require(await transport.writes.first)
+        // camera terminal (unit 1) addressed in wIndex, AE mode selector 2, aperture priority (8)
+        #expect(write.index == 0x0100 && write.value == 0x0200 && write.data == [8])
+        try await UVCDriver().write(.int(0), to: capability("exposure_auto"), using: transport)
+        #expect(await transport.writes.last?.data == [1])
+    }
+
+    @Test func fallsBackToOtherAutomaticModesAndFailsWhenThereIsNone() async throws {
+        #expect(UVCDriver.automaticExposureMode(supported: 0x14) == 4)
+        #expect(UVCDriver.automaticExposureMode(supported: 0x0A) == 8)
+        #expect(UVCDriver.automaticExposureMode(supported: 0x06) == 2)
+        #expect(UVCDriver.automaticExposureMode(supported: 0x01) == nil)
+        await #expect(throws: DriverError.self) {
+            try await UVCDriver().write(.int(1), to: capability("exposure_auto"), using: camera(modes: [0x01]))
+        }
+    }
+
+    @Test func exposureTimeUsesFourByteLimitsAndValues() async throws {
+        let transport = camera()
+        #expect(try await UVCDriver().limits(for: capability("exposure_time"), using: transport) == ValueLimits(min: 1, max: 200_000, step: 1))
+        #expect(try await UVCDriver().read(capability("exposure_time"), using: transport) == .int(500))
+        try await UVCDriver().write(.int(1000), to: capability("exposure_time"), using: transport)
+        let write = try #require(await transport.writes.first)
+        #expect(write.data == [0xE8, 0x03, 0x00, 0x00] && write.index == 0x0100 && write.value == 0x0400)
+        await #expect(throws: DriverError.self) { try await UVCDriver().write(.int(0), to: capability("exposure_time"), using: transport) }
     }
 }

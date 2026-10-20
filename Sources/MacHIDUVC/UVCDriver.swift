@@ -2,14 +2,27 @@ import MacHIDDomain
 
 /// A UVC processing-unit control the driver can read and set.
 struct UVCControl: Sendable {
-    enum Kind: Sendable { case range, flag, enumeration(ClosedRange<Int>) }
+    enum Kind: Sendable { case range, flag, enumeration(ClosedRange<Int>), autoExposure }
+    /// Which unit of the camera owns the control, and so which `bmControls` bitmap the `bit` indexes.
+    enum Entity: Sendable { case processing, camera }
 
     let id: String
     let selector: UInt8
     let size: Int
-    let bit: Int          // index in the processing unit's bmControls
+    let bit: Int
     let signed: Bool
     let kind: Kind
+    let entity: Entity
+
+    init(id: String, selector: UInt8, size: Int, bit: Int, signed: Bool, kind: Kind, entity: Entity = .processing) {
+        self.id = id
+        self.selector = selector
+        self.size = size
+        self.bit = bit
+        self.signed = signed
+        self.kind = kind
+        self.entity = entity
+    }
 
     /// Selectors, sizes and bit positions follow the USB Video Class spec as implemented by Linux uvcvideo.
     static let all: [UVCControl] = [
@@ -22,6 +35,9 @@ struct UVCControl: Sendable {
         UVCControl(id: "gain", selector: 0x04, size: 2, bit: 9, signed: false, kind: .range),
         UVCControl(id: "power_line_frequency", selector: 0x05, size: 1, bit: 10, signed: false, kind: .enumeration(0...2)),
         UVCControl(id: "white_balance_auto", selector: 0x0B, size: 1, bit: 12, signed: false, kind: .flag),
+        // Camera terminal: auto-exposure mode, and the exposure time in units of 100 microseconds.
+        UVCControl(id: "exposure_auto", selector: 0x02, size: 1, bit: 1, signed: false, kind: .autoExposure, entity: .camera),
+        UVCControl(id: "exposure_time", selector: 0x04, size: 4, bit: 3, signed: false, kind: .range, entity: .camera),
     ]
 
     static func control(id: String) -> UVCControl? { all.first { $0.id == id } }
@@ -51,16 +67,31 @@ public struct UVCDriver: DeviceDriver {
         }
         guard let control = UVCControl.control(id: capability.id) else { throw DriverError.unsupportedCapability(capability.id) }
         let unit = try unitID(for: control, in: descriptor)
-        return .int(try await query(Request.getCur, control, unit: unit, descriptor: descriptor, transport: transport))
+        let current = try await query(Request.getCur, control, unit: unit, descriptor: descriptor, transport: transport)
+        if case .autoExposure = control.kind { return .int(current == Self.manualExposure ? 0 : 1) }
+        return .int(current)
     }
 
     public func write(_ value: SettingValue, to capability: CapabilityDescriptor, using transport: any Transport) async throws {
         guard let control = UVCControl.control(id: capability.id) else { throw DriverError.unsupportedCapability(capability.id) }
-        guard case .int(let number) = value else { throw DriverError.invalidValue("wrong value type for '\(control.id)'") }
+        guard case .int(let requested) = value else { throw DriverError.invalidValue("wrong value type for '\(control.id)'") }
         let descriptor = try await UVCDescriptor.parse(configuration: transport.usbConfigurationDescriptor())
         let unit = try unitID(for: control, in: descriptor)
 
+        var number = requested
         switch control.kind {
+        case .autoExposure:
+            guard number == 0 || number == 1 else { throw DriverError.invalidValue("\(control.id) must be 0 or 1") }
+            if number == 1 {
+                // GET_RES of the AE mode lists the modes the camera supports as a bit field.
+                let modes = try await query(Request.getRes, control, unit: unit, descriptor: descriptor, transport: transport)
+                guard let automatic = Self.automaticExposureMode(supported: modes) else {
+                    throw DriverError.deviceFailure("this camera reports no automatic exposure mode")
+                }
+                number = automatic
+            } else {
+                number = Self.manualExposure
+            }
         case .flag:
             guard number == 0 || number == 1 else { throw DriverError.invalidValue("\(control.id) must be 0 or 1") }
         case .enumeration(let allowed):
@@ -95,15 +126,31 @@ public struct UVCDriver: DeviceDriver {
 
     // MARK: Helpers
 
+    /// AE mode values (UVC spec): 1 manual, 2 auto, 4 shutter priority, 8 aperture priority.
+    static let manualExposure = 1
+
+    /// "Auto" prefers aperture priority (what most webcams offer), then full auto, then shutter priority.
+    static func automaticExposureMode(supported modes: Int) -> Int? {
+        [8, 2, 4].first { modes & $0 != 0 }
+    }
+
+    private func entityID(for control: UVCControl, in descriptor: UVCDescriptor) -> (id: UInt8, bitmap: UInt32)? {
+        switch control.entity {
+        case .processing: descriptor.processingUnitID.map { ($0, descriptor.processingControls) }
+        case .camera: descriptor.cameraTerminalID.map { ($0, descriptor.cameraControls) }
+        }
+    }
+
     private func isSupported(_ control: UVCControl, in descriptor: UVCDescriptor) -> Bool {
-        descriptor.processingUnitID != nil && descriptor.processingControls & (1 << UInt32(control.bit)) != 0
+        guard let entity = entityID(for: control, in: descriptor) else { return false }
+        return entity.bitmap & (1 << UInt32(control.bit)) != 0
     }
 
     private func unitID(for control: UVCControl, in descriptor: UVCDescriptor) throws -> UInt8 {
-        guard let unit = descriptor.processingUnitID, isSupported(control, in: descriptor) else {
+        guard let entity = entityID(for: control, in: descriptor), isSupported(control, in: descriptor) else {
             throw DriverError.unsupportedCapability("\(control.id) (this camera does not support it)")
         }
-        return unit
+        return entity.id
     }
 
     private func query(_ request: UInt8, _ control: UVCControl, unit: UInt8, descriptor: UVCDescriptor,

@@ -111,6 +111,9 @@ public struct DeviceControl: Sendable {
         case (.lightingZone, .color):
             let modes = parameters?.zones?.flatMap(\.modes) ?? []
             guard modes.contains("static") else { throw ControlError.invalidValue("'\(capability.id)' has no static color mode") }
+        case (.lightingZone, .effect(let effect)):
+            let modes = parameters?.zones?.flatMap(\.modes) ?? []
+            guard modes.contains(effect.effect) else { throw ControlError.invalidValue("'\(capability.id)' has no mode '\(effect.effect)'") }
         case (.lightingZone, .text(let mode)):
             let modes = parameters?.zones?.flatMap(\.modes) ?? []
             guard modes.contains(mode) else { throw ControlError.invalidValue("'\(capability.id)' has no mode '\(mode)'") }

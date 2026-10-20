@@ -11,7 +11,7 @@ usage:
   machid info <vvvv:pppp> [--json] [--definitions <dir>]
   machid get <vvvv:pppp> <capability>
   machid set <vvvv:pppp> brightness <0-100>
-  machid set <vvvv:pppp> backlight <RRGGBB|off>
+  machid set <vvvv:pppp> backlight <RRGGBB|off|effect[:RRGGBB]>
   machid set <vvvv:pppp> dpi <value>
   machid set <vvvv:pppp> device_mode <0|1|3>
   machid --version
@@ -108,6 +108,8 @@ func describe(_ value: SettingValue) -> String {
     case .bool(let flag): "\(flag)"
     case .int(let number): "\(number)"
     case .color(let color): String(format: "#%02X%02X%02X", color.r, color.g, color.b)
+    case .effect(let effect):
+        effect.color.map { effect.effect + String(format: ":#%02X%02X%02X", $0.r, $0.g, $0.b) } ?? effect.effect
     case .text(let text): text
     }
 }
@@ -136,7 +138,15 @@ do {
         case "backlight":
             if args[3] == "off" { value = .text("off") }
             else if let color = parseColor(args[3]) { value = .color(color) }
-            else { fail("backlight must be RRGGBB (hex) or 'off'", code: 2) }
+            else {
+                // An effect by name, optionally with a color: spectrum, wave, reactive:FF0000, breathing:00FF00 ...
+                let parts = args[3].split(separator: ":", maxSplits: 1).map(String.init)
+                let color = parts.count == 2 ? parseColor(parts[1]) : nil
+                guard let name = parts.first, name.allSatisfy({ $0.isLetter }), parts.count == 1 || color != nil else {
+                    fail("backlight must be RRGGBB, 'off' or an effect such as spectrum or reactive:FF0000", code: 2)
+                }
+                value = .effect(LightingEffect(name, color: color))
+            }
         default:
             // Any other capability takes a whole number; the definition and the driver validate it.
             guard let number = Int(args[3]) else { fail("'\(args[2])' takes a whole number", code: 2) }

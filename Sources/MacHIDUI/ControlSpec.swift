@@ -6,7 +6,8 @@ public enum ControlKind: Equatable, Sendable {
     case slider(min: Int, max: Int, step: Int, deviceLimits: Bool)
     case toggle
     case choice([Int])
-    case color(canTurnOff: Bool)
+    /// Lighting zone: the modes the device offers (static, off, spectrum, wave, ...).
+    case lighting(modes: [String])
     /// Host (software) control of the device's lighting or mode.
     case hostControl
     case readout
@@ -32,7 +33,10 @@ public struct ControlSpec: Equatable, Sendable, Identifiable {
         case .lightingZone:
             let modes = parameters?.zones?.flatMap(\.modes) ?? []
             guard modes.contains("static") else { return nil }
-            return ControlSpec(capability: capability, kind: .color(canTurnOff: modes.contains("off")), section: .lighting, readable: false)
+            return ControlSpec(capability: capability, kind: .lighting(modes: modes), section: .lighting, readable: false)
+        case .pollingRate:
+            let rates = parameters?.values?.sorted() ?? [125, 250, 500, 1000]
+            return ControlSpec(capability: capability, kind: .choice(rates), section: .performance, readable: true)
         case .brightness:
             return ControlSpec(capability: capability, kind: .slider(min: parameters?.min ?? 0, max: parameters?.max ?? 100,
                                                                      step: parameters?.step ?? 1, deviceLimits: false),
@@ -62,4 +66,39 @@ public struct ControlSpec: Equatable, Sendable, Identifiable {
     }
 
     public var isWritable: Bool { capability.access != .read }
+
+    /// A manual control that the device ignores while an automatic one is on (e.g. exposure time under auto exposure).
+    public var disabledWhen: (control: String, equals: Int)? {
+        switch id {
+        case "exposure_time": ("exposure_auto", 1)
+        case "white_balance_temperature": ("white_balance_auto", 1)
+        default: nil
+        }
+    }
+}
+
+/// Which lighting modes take a color.
+public enum LightingModes {
+    public static func usesColor(_ mode: String) -> Bool { ["static", "reactive", "breathing", "starlight"].contains(mode) }
+    /// Modes that also work without a color.
+    public static func colorIsOptional(_ mode: String) -> Bool { mode == "starlight" }
+
+    /// The mode a stored value corresponds to.
+    public static func mode(of value: SettingValue?) -> String? {
+        switch value {
+        case .color?: "static"
+        case .text(let text)?: text
+        case .effect(let effect)?: effect.effect
+        default: nil
+        }
+    }
+
+    /// The value that selects `mode`, keeping `color` for the modes that use one.
+    public static func value(for mode: String, color: RGBColor) -> SettingValue {
+        switch mode {
+        case "static": .color(color)
+        case "off": .text("off")
+        default: .effect(LightingEffect(mode, color: usesColor(mode) ? color : nil))
+        }
+    }
 }

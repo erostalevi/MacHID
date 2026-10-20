@@ -63,6 +63,15 @@ import Testing
 }
 
 @Suite struct ProfileTests {
+    @Test func effectsRoundTripAndStayDistinctFromColors() throws {
+        let withColor = SettingValue.effect(LightingEffect("reactive", color: RGBColor(r: 9, g: 8, b: 7)))
+        let plain = SettingValue.effect(LightingEffect("spectrum"))
+        for value in [withColor, plain, .color(RGBColor(r: 1, g: 2, b: 3)), .text("off"), .int(5), .bool(true)] {
+            let data = try JSONEncoder().encode([value])
+            #expect(try JSONDecoder().decode([SettingValue].self, from: data) == [value])
+        }
+    }
+
     @Test func roundTripsAllValueKinds() throws {
         let profile = Profile(id: "p", name: "Work", settings: [
             "dev": ["dpi": .int(1600), "lights": .bool(true),

@@ -22,8 +22,8 @@ import MacHIDDomain
 
     @Test func lightingNeedsAStaticMode() {
         let zones = { (modes: [String]) in CapabilityParameters(zones: [LightingZone(id: "z", modes: modes)]) }
-        #expect(spec(.lightingZone, zones(["static", "off"]))?.kind == .color(canTurnOff: true))
-        #expect(spec(.lightingZone, zones(["static"]))?.kind == .color(canTurnOff: false))
+        #expect(spec(.lightingZone, zones(["static", "off", "wave"]))?.kind == .lighting(modes: ["static", "off", "wave"]))
+        #expect(spec(.lightingZone, zones(["static"]))?.kind == .lighting(modes: ["static"]))
         #expect(spec(.lightingZone, zones(["wave"])) == nil)
         #expect(spec(.lightingZone, zones(["static"]))?.readable == false)
     }
@@ -49,5 +49,29 @@ import MacHIDDomain
             let specs = ControlSpec.specs(for: definition)
             #expect(specs.count >= 2, "\(name) should expose controls")
         }
+    }
+
+    @Test func pollingRateIsAChoiceWithDefaults() {
+        #expect(spec(.pollingRate)?.kind == .choice([125, 250, 500, 1000]))
+        #expect(spec(.pollingRate, .init(values: [1000, 500]))?.kind == .choice([500, 1000]))
+        #expect(spec(.pollingRate)?.section == .performance)
+    }
+
+    @Test func manualControlsAreBlockedByTheirAutomaticSwitch() {
+        let exposure = ControlSpec.make(for: CapabilityDescriptor(id: "exposure_time", type: .cameraControl, access: .writeVolatile))
+        #expect(exposure?.disabledWhen?.control == "exposure_auto" && exposure?.disabledWhen?.equals == 1)
+        #expect(spec(.dpi)?.disabledWhen == nil)
+    }
+
+    @Test func lightingModesMapToValuesAndBack() {
+        let red = MacHIDDomain.RGBColor(r: 255, g: 0, b: 0)
+        #expect(LightingModes.value(for: "static", color: red) == .color(red))
+        #expect(LightingModes.value(for: "off", color: red) == .text("off"))
+        #expect(LightingModes.value(for: "reactive", color: red) == .effect(LightingEffect("reactive", color: red)))
+        #expect(LightingModes.value(for: "spectrum", color: red) == .effect(LightingEffect("spectrum")))     // no color for colorless modes
+        #expect(LightingModes.mode(of: .color(red)) == "static")
+        #expect(LightingModes.mode(of: .text("off")) == "off")
+        #expect(LightingModes.mode(of: .effect(LightingEffect("wave"))) == "wave")
+        #expect(LightingModes.mode(of: nil) == nil)
     }
 }

@@ -43,7 +43,7 @@ extension AppModel {
                 case .slider(let min, let max, _, _): entry.values[spec.id] = .int(min + (max - min) * 6 / 10)
                 case .toggle: entry.values[spec.id] = .int(1)
                 case .choice(let values): entry.values[spec.id] = .int(values.last ?? 0)
-                case .color: entry.values[spec.id] = .color(MacHIDDomain.RGBColor(r: 120, g: 70, b: 255))
+                case .lighting: entry.values[spec.id] = .color(MacHIDDomain.RGBColor(r: 120, g: 70, b: 255))
                 case .hostControl: entry.values[spec.id] = .int(0)
                 case .readout: entry.values[spec.id] = .text("v1.12")
                 }

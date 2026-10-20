@@ -60,6 +60,18 @@ public struct RazerDriver: DeviceDriver {
         case ("backlight", .text("off")):
             try await ensureDriverMode(on: transport)
             _ = try await exchange(RazerCommands.effectNone(transactionID: tid), on: transport)
+        case ("backlight", .effect(let effect)):
+            let request: RazerReport
+            switch (effect.effect, effect.color) {
+            case ("spectrum", _): request = RazerCommands.spectrum(transactionID: tid)
+            case ("wave", _): request = RazerCommands.wave(direction: 1, transactionID: tid)
+            case ("reactive", let color?): request = RazerCommands.reactive(speed: 2, color: color, transactionID: tid)
+            case ("starlight", let color): request = RazerCommands.starlight(speed: 2, color: color, transactionID: tid)
+            case ("reactive", nil): throw DriverError.invalidValue("reactive needs a color")
+            default: throw DriverError.invalidValue("unknown effect '\(effect.effect)'")
+            }
+            try await ensureDriverMode(on: transport)       // only after the request is known to be valid
+            _ = try await exchange(request, on: transport)
         case ("device_mode", .int(let mode)):
             guard mode == 0 || mode == 3 else { throw DriverError.invalidValue("device_mode must be 0 (normal) or 3 (driver)") }
             _ = try await exchange(RazerCommands.setDeviceMode(UInt8(mode)), on: transport)

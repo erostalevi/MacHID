@@ -184,4 +184,38 @@ private let info = CapabilityDescriptor(id: "info", type: .info, access: .read)
         try await driver().write(.int(40), to: brightness, using: transport)
         #expect(await transport.sent.map(\.commandID) == [0x84, 0x04])
     }
+
+    @Test func effectsUseTheDocumentedPacketLayouts() async throws {
+        let tid: UInt8 = 0x3F
+        // OpenRazer examples: spectrum 010503000000, wave 010504002800/010504012800,
+        // reactive 010505000101ffff00, starlight single 010507000301ff0000 (speed 3).
+        let spectrum = RazerCommands.spectrum(transactionID: tid)
+        #expect(spectrum.dataSize == 6 && Array(spectrum.arguments.prefix(6)) == [1, 5, 3, 0, 0, 0])
+        let wave = RazerCommands.wave(direction: 1, transactionID: tid)
+        #expect(Array(wave.arguments.prefix(6)) == [1, 5, 4, 1, 0x28, 0])
+        let reactive = RazerCommands.reactive(speed: 1, color: RGBColor(r: 0xFF, g: 0xFF, b: 0), transactionID: tid)
+        #expect(reactive.dataSize == 9 && Array(reactive.arguments.prefix(9)) == [1, 5, 5, 0, 1, 1, 0xFF, 0xFF, 0])
+        let single = RazerCommands.starlight(speed: 3, color: RGBColor(r: 0xFF, g: 0, b: 0), transactionID: tid)
+        #expect(single.dataSize == 9 && Array(single.arguments.prefix(9)) == [1, 5, 7, 0, 3, 1, 0xFF, 0, 0])
+        let random = RazerCommands.starlight(speed: 9, color: nil, transactionID: tid)
+        #expect(random.dataSize == 6 && random.arguments[4] == 3)       // speed clamps to 3
+        #expect(RazerCommands.reactive(speed: 0, color: RGBColor(r: 0, g: 0, b: 0), transactionID: tid).arguments[4] == 1)
+    }
+
+    @Test func driverSendsEachEffectInDriverMode() async throws {
+        let transport = FakeTransport { ok($0, arguments: [3, 0]) }       // already in driver mode
+        for effect in [LightingEffect("spectrum"), LightingEffect("wave"),
+                       LightingEffect("reactive", color: RGBColor(r: 1, g: 2, b: 3)), LightingEffect("starlight")] {
+            try await driver().write(.effect(effect), to: backlight, using: transport)
+        }
+        let effects = await transport.sent.filter { $0.commandClass == 0x0F }.map { $0.arguments[2] }
+        #expect(effects == [0x03, 0x04, 0x05, 0x07])
+    }
+
+    @Test func badEffectsAreRejectedBeforeSending() async {
+        let transport = FakeTransport { ok($0) }
+        await #expect(throws: DriverError.self) { try await driver().write(.effect(LightingEffect("reactive")), to: backlight, using: transport) }
+        await #expect(throws: DriverError.self) { try await driver().write(.effect(LightingEffect("fireworks")), to: backlight, using: transport) }
+        #expect(await transport.sent.filter { $0.commandClass == 0x0F }.isEmpty)
+    }
 }

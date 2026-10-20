@@ -10,10 +10,22 @@ public struct RGBColor: Sendable, Codable, Equatable {
     }
 }
 
+/// A named lighting effect, optionally with a color (e.g. reactive, breathing, starlight).
+public struct LightingEffect: Sendable, Codable, Equatable {
+    public let effect: String
+    public let color: RGBColor?
+
+    public init(_ effect: String, color: RGBColor? = nil) {
+        self.effect = effect
+        self.color = color
+    }
+}
+
 /// A single value a profile stores for a capability.
 public enum SettingValue: Sendable, Equatable, Codable {
     case bool(Bool)
     case int(Int)
+    case effect(LightingEffect)
     case color(RGBColor)
     case text(String)
 
@@ -21,6 +33,7 @@ public enum SettingValue: Sendable, Equatable, Codable {
         let container = try decoder.singleValueContainer()
         if let value = try? container.decode(Bool.self) { self = .bool(value) }
         else if let value = try? container.decode(Int.self) { self = .int(value) }
+        else if let value = try? container.decode(LightingEffect.self) { self = .effect(value) }
         else if let value = try? container.decode(RGBColor.self) { self = .color(value) }
         else { self = .text(try container.decode(String.self)) }
     }
@@ -30,6 +43,7 @@ public enum SettingValue: Sendable, Equatable, Codable {
         switch self {
         case .bool(let value): try container.encode(value)
         case .int(let value): try container.encode(value)
+        case .effect(let value): try container.encode(value)
         case .color(let value): try container.encode(value)
         case .text(let value): try container.encode(value)
         }

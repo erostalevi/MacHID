@@ -147,6 +147,13 @@ private let controllable = DeviceDefinition(
 }
 
 @Suite struct AllowedValuesTests {
+    @Test func effectsMustBeOneOfTheZonesModes() throws {
+        let lighting = CapabilityDescriptor(id: "backlight", type: .lightingZone, access: .writeVolatile,
+                                            parameters: .init(zones: [LightingZone(id: "z", modes: ["static", "spectrum"])]))
+        try DeviceControl.validate(.effect(LightingEffect("spectrum")), against: lighting)
+        #expect(throws: ControlError.self) { try DeviceControl.validate(.effect(LightingEffect("wave")), against: lighting) }
+    }
+
     @Test func rejectsValuesOutsideTheAllowedSet() throws {
         let mode = CapabilityDescriptor(id: "device_mode", type: .deviceMode, access: .writeVolatile, parameters: .init(values: [0, 3]))
         try DeviceControl.validate(.int(3), against: mode)

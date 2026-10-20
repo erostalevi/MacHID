@@ -69,6 +69,22 @@
           2
         ]
       }
+    },
+    {
+      "id": "exposure_auto",
+      "type": "camera_control",
+      "access": "write_volatile",
+      "parameters": {
+        "values": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "exposure_time",
+      "type": "camera_control",
+      "access": "write_volatile"
     }
   ]
 }

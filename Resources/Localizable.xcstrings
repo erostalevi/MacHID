@@ -638,6 +638,116 @@
           }
         }
       }
+    },
+    "Polling rate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frecuencia de sondeo"
+          }
+        }
+      }
+    },
+    "Auto exposure": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exposición automática"
+          }
+        }
+      }
+    },
+    "Exposure time": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiempo de exposición"
+          }
+        }
+      }
+    },
+    "Static": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fijo"
+          }
+        }
+      }
+    },
+    "Spectrum": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espectro"
+          }
+        }
+      }
+    },
+    "Wave": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onda"
+          }
+        }
+      }
+    },
+    "Reactive": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reactivo"
+          }
+        }
+      }
+    },
+    "Starlight": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estrellas"
+          }
+        }
+      }
+    },
+    "Cycle": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ciclo"
+          }
+        }
+      }
+    },
+    "Breathing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respiración"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -396,3 +396,76 @@ private func simulatedRGBMouse(effectIDs: [UInt16] = [1, 3], swMode: UInt8 = 0, 
         }
     }
 }
+
+private let pollingCapability = CapabilityDescriptor(id: "polling_rate", type: .pollingRate, access: .writeVolatile)
+
+@Suite struct PollingRateTests {
+    /// 0x8060 at index 13; supports 1, 2 and 8 ms (bits 0, 1 and 7); currently 2 ms.
+    private func mouse(flags: UInt8 = 0b1000_0011, current: UInt8 = 2) -> @Sendable (HidppMessage) -> [(UInt8, [UInt8])] {
+        return { request in
+            func answer(_ parameters: [UInt8]) -> [(UInt8, [UInt8])] { [reply(to: request, parameters: parameters)] }
+            switch (request.featureIndex, request.function) {
+            case (0x00, 0): return UInt16(request.parameters[0]) << 8 | UInt16(request.parameters[1]) == 0x8060 ? answer([13, 0, 1]) : answer([0, 0, 0])
+            case (13, 0): return answer([flags])
+            case (13, 1): return answer([current])
+            case (13, 2): return answer(request.parameters)
+            default: return []
+            }
+        }
+    }
+
+    @Test func readsTheCurrentRateInHertz() async throws {
+        let transport = FakeHidppTransport(script: mouse(current: 2))
+        #expect(try await HidppDriver().read(pollingCapability, using: transport) == .int(500))
+    }
+
+    @Test func decodesTheSupportedRatesBitField() {
+        #expect(HidppDriver.supportedRates(bitFlags: 0b1000_1011) == [1000: 1, 500: 2, 250: 4, 125: 8])
+        #expect(HidppDriver.supportedRates(bitFlags: 0b0000_0001) == [1000: 1])
+        #expect(HidppDriver.supportedRates(bitFlags: 0).isEmpty)
+    }
+
+    @Test func writeSendsThePeriodInMilliseconds() async throws {
+        let transport = FakeHidppTransport(script: mouse())
+        try await HidppDriver().write(.int(125), to: pollingCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(set.feature == 13 && set.function == 2 && set.parameters[0] == 8)
+    }
+
+    @Test func unsupportedRatesAreNeverSent() async {
+        let transport = FakeHidppTransport(script: mouse())
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.int(250), to: pollingCapability, using: transport) }
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.text("fast"), to: pollingCapability, using: transport) }
+        #expect(await calls(transport).allSatisfy { !($0.feature == 13 && $0.function == 2) })
+    }
+}
+
+@Suite struct LogitechEffectTests {
+    @Test func cycleUsesTheCycleLayoutOnRGBEffects() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1, 3, 10]))
+        try await HidppDriver().write(.effect(LightingEffect("cycle")), to: backlightCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        // zone 0, effect at position 1, 10 parameter bytes (5 unused, period 5000 ms, intensity 100), flag
+        #expect(Array(set.parameters.prefix(13)) == [0, 1, 0, 0, 0, 0, 0, 0x13, 0x88, 100, 0, 0, 1])
+    }
+
+    @Test func breathingCarriesColorAndPeriod() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1, 3, 10]))
+        try await HidppDriver().write(.effect(LightingEffect("breathing", color: RGBColor(r: 1, g: 2, b: 3))), to: backlightCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(Array(set.parameters.prefix(12)) == [0, 2, 1, 2, 3, 0x13, 0x88, 0, 100, 0, 0, 0])
+    }
+
+    @Test func invalidEffectsAreRejectedBeforeAnyWrite() async {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1, 3, 10]))
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.effect(LightingEffect("breathing")), to: backlightCapability, using: transport) }
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.effect(LightingEffect("lasers")), to: backlightCapability, using: transport) }
+        #expect(await transport.sent.isEmpty)
+    }
+
+    @Test func missingEffectOnTheZoneFailsCleanly() async {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1]))
+        await #expect(throws: DriverError.self) { try await HidppDriver().write(.effect(LightingEffect("cycle")), to: backlightCapability, using: transport) }
+        #expect(await calls(transport).allSatisfy { !($0.feature == rgbFeature && $0.function == 1) })
+    }
+}

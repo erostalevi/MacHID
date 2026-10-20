@@ -35,6 +35,36 @@ public enum RazerCommands {
                     arguments: [varStore, backlightLED, 0x00])
     }
 
+    /// Built-in effects of the extended matrix (class 0x0F, command 0x02). Layouts follow the packet
+    /// examples in OpenRazer's razerchromacommon.c.
+    public static func spectrum(transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x06,
+                    arguments: [varStore, backlightLED, 0x03])
+    }
+
+    /// `direction`: 0 or 1 on current devices (some older models use 1 and 2). Speed byte 0x28 is the default.
+    public static func wave(direction: UInt8, transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x06,
+                    arguments: [varStore, backlightLED, 0x04, min(direction, 2), 0x28])
+    }
+
+    /// `speed` 1...4 (lower is faster reaction decay).
+    public static func reactive(speed: UInt8, color: RGBColor, transactionID: UInt8) -> RazerReport {
+        RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x09,
+                    arguments: [varStore, backlightLED, 0x05, 0x00, min(max(speed, 1), 4), 0x01, color.r, color.g, color.b])
+    }
+
+    /// `speed` 1...3. Without a color the stars are random.
+    public static func starlight(speed: UInt8, color: RGBColor?, transactionID: UInt8) -> RazerReport {
+        let speed = min(max(speed, 1), 3)
+        guard let color else {
+            return RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x06,
+                               arguments: [varStore, backlightLED, 0x07, 0x00, speed])
+        }
+        return RazerReport(transactionID: transactionID, commandClass: 0x0F, commandID: 0x02, dataSize: 0x09,
+                           arguments: [varStore, backlightLED, 0x07, 0x00, speed, 0x01, color.r, color.g, color.b])
+    }
+
     /// Device mode: 0x00 normal, 0x03 driver mode. Mode 0x02 (factory test) is deliberately not offered.
     public static func getDeviceMode() -> RazerReport {
         RazerReport(transactionID: standardTransactionID, commandClass: 0x00, commandID: 0x84, dataSize: 0x02)

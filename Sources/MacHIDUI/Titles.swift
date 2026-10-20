@@ -20,6 +20,9 @@ enum Titles {
         case "backlight_compensation": Text("Backlight compensation")
         case "power_line_frequency": Text("Power line frequency")
         case "features": Text("Features")
+        case "polling_rate": Text("Polling rate")
+        case "exposure_auto": Text("Auto exposure")
+        case "exposure_time": Text("Exposure time")
         default: Text(verbatim: humanize(id))
         }
     }
@@ -39,7 +42,22 @@ enum Titles {
         case ("power_line_frequency", 0): Text("Off")
         case ("power_line_frequency", 1): Text(verbatim: "50 Hz")
         case ("power_line_frequency", 2): Text(verbatim: "60 Hz")
+        case ("polling_rate", _): Text(verbatim: "\(value) Hz")
         default: Text(verbatim: "\(value)")
+        }
+    }
+
+    static func lightingMode(_ mode: String) -> Text {
+        switch mode {
+        case "static": Text("Static")
+        case "off": Text("Off")
+        case "spectrum": Text("Spectrum")
+        case "wave": Text("Wave")
+        case "reactive": Text("Reactive")
+        case "starlight": Text("Starlight")
+        case "cycle": Text("Cycle")
+        case "breathing": Text("Breathing")
+        default: Text(verbatim: humanize(mode))
         }
     }
 

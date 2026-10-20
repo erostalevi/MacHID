@@ -46,9 +46,11 @@ public struct HidppDPIList: Equatable, Sendable {
 public struct HidppDriver: DeviceDriver {
     public let familyID = "logitech-gseries"
 
-    /// Fixed (static) and disabled effect ids of COLOR_LED_EFFECTS.
+    /// Effect ids shared by COLOR_LED_EFFECTS and RGB_EFFECTS (libratbag's zone effect table).
     private static let disabledEffect: UInt16 = 0
     private static let fixedEffect: UInt16 = 1
+    private static let cycleEffect: UInt16 = 3
+    private static let breathingEffect: UInt16 = 10
     private static let zone: UInt8 = 0
 
     public init() {}
@@ -75,6 +77,12 @@ public struct HidppDriver: DeviceDriver {
                 let reply = try await client.request(featureIndex: index, function: 5)
                 return .int(reply[1] == 0 ? 0 : 1)
             }
+        case "polling_rate":
+            let index = try await client.featureIndex(for: HidppFeature.adjustableReportRate)
+            // GetReportRate (function 1) -> [period in ms]
+            let periodMs = Int(try await client.request(featureIndex: index, function: 1)[0])
+            guard periodMs > 0 else { throw HidppError.malformed("report period of 0") }
+            return .int(1000 / periodMs)
         case "features":
             // Diagnostic: "index:id" for every feature, e.g. "0:0000 1:0001 9:2201".
             let features = try await client.listFeatures()
@@ -93,6 +101,19 @@ public struct HidppDriver: DeviceDriver {
             try await setEffect(Self.fixedEffect, parameters: [color.r, color.g, color.b], client: client)
         case ("backlight", .text("off")):
             try await setEffect(Self.disabledEffect, parameters: [], client: client)
+        case ("backlight", .effect(let effect)):
+            switch (effect.effect, effect.color) {
+            case ("cycle", _):
+                // libratbag cycle layout: 5 unused bytes, period (BE16 ms), intensity (0 = 100%).
+                try await setEffect(Self.cycleEffect, parameters: [0, 0, 0, 0, 0, 0x13, 0x88, 100], client: client)
+            case ("breathing", let color?):
+                // libratbag breathing layout: color, period (BE16 ms), waveform (0 = default), intensity.
+                try await setEffect(Self.breathingEffect, parameters: [color.r, color.g, color.b, 0x13, 0x88, 0, 100], client: client)
+            case ("breathing", nil): throw DriverError.invalidValue("breathing needs a color")
+            default: throw DriverError.invalidValue("unknown effect '\(effect.effect)'")
+            }
+        case ("polling_rate", .int(let hertz)):
+            try await setPollingRate(hertz, client: client)
         case ("device_mode", .int(let mode)):
             guard mode == 0 || mode == 1 else { throw DriverError.invalidValue("device_mode must be 0 (device) or 1 (host)") }
             switch try await lightingFeature(client) {
@@ -101,7 +122,7 @@ public struct HidppDriver: DeviceDriver {
             case .rgbEffects(let index):
                 try await setRGBHostControl(mode == 1, client: client, featureIndex: index)
             }
-        case ("dpi", _), ("backlight", _), ("device_mode", _):
+        case ("dpi", _), ("backlight", _), ("device_mode", _), ("polling_rate", _):
             throw DriverError.invalidValue("wrong value type for '\(capability.id)'")
         default:
             throw DriverError.unsupportedCapability(capability.id)
@@ -121,6 +142,27 @@ public struct HidppDriver: DeviceDriver {
         // Protocol version 0 does not echo the value; otherwise it must match.
         let echoed = Int(reply[1]) << 8 | Int(reply[2])
         guard echoed == 0 || echoed == dpi else { throw HidppError.malformed("device set \(echoed) DPI instead of \(dpi)") }
+    }
+
+    // MARK: Polling rate (ADJUSTABLE_REPORT_RATE 0x8060)
+
+    /// The period list is a bit field: bit n set means a period of (n + 1) ms is supported. Only the usual
+    /// rates are offered, like libratbag does.
+    static func supportedRates(bitFlags: UInt8) -> [Int: UInt8] {
+        var rates: [Int: UInt8] = [:]
+        for (bit, periodMs) in [(0, 1), (1, 2), (3, 4), (7, 8)] where bitFlags & (1 << UInt8(bit)) != 0 {
+            rates[1000 / periodMs] = UInt8(periodMs)
+        }
+        return rates
+    }
+
+    private func setPollingRate(_ hertz: Int, client: HidppClient) async throws {
+        let index = try await client.featureIndex(for: HidppFeature.adjustableReportRate)
+        let flags = try await client.request(featureIndex: index, function: 0)[0]
+        guard let periodMs = Self.supportedRates(bitFlags: flags)[hertz] else {
+            throw DriverError.invalidValue("\(hertz) Hz is not supported by this mouse")
+        }
+        _ = try await client.request(featureIndex: index, function: 2, parameters: [periodMs])
     }
 
     // MARK: Lighting
