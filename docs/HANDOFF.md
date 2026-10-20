@@ -46,7 +46,7 @@ Useful commands: `machid list --all`, `machid info 1532:0257`, `machid get 046d:
 
 ## 5. Open work, in priority order
 ### Needs the owner
-1. Add `LICENSE` (GPLv3 text). Not downloaded without permission.
+1. ~~LICENSE~~ added (GPLv3). App icon added (`scripts/make-icon.swift`).
 2. GitHub secrets/variables so releases publish (see `docs/RELEASE.md`): Developer ID certificate (`DEVELOPER_ID_CERT_P12_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `DEVELOPER_ID_IDENTITY`), notarization (`NOTARY_API_KEY_P8_BASE64`, `NOTARY_API_KEY_ID`, `NOTARY_API_ISSUER_ID`), registry key (`scripts/make-registry-key.sh` -> secret `REGISTRY_SIGNING_KEY_PEM`, variable `REGISTRY_PUBLIC_KEY`), Sparkle (`generate_keys` -> secret `SPARKLE_ED_PRIVATE_KEY`, variable `SPARKLE_PUBLIC_KEY`). Without them `release.yml` builds and tests only (green) and builds are unsigned with updating and plugin discovery switched off.
 3. GitHub `release` environment: required reviewers and branch restriction to `master`.
 4. Telemetry collector decision (SPEC §18): only local `machid diagnostics export` exists.

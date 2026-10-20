@@ -34,3 +34,10 @@
 ## Pruebas
 - `swift build` y `swift test` (todas pasan) con `--scratch-path /private/tmp/machid-ui`.
 - Recomendado: `scripts/make-app.sh`, abrir la app y comprobar ventana, menú, arrastre y respuesta de los sliders.
+
+## Icono, licencia e instalación (adenda)
+- `scripts/make-icon.swift` dibuja el icono (ratón de cristal con ondas sobre degradado violeta-azul) y genera `Resources/AppIcon.icns`; `make-app.sh` lo copia al bundle y declara `CFBundleIconFile`.
+- `LICENSE`: texto oficial de la GPLv3 (gnu.org), cierra el punto 1 de "Needs the owner" del handoff.
+- `scripts/install-app.sh`: compila, cierra la app en marcha, instala en /Applications y la abre.
+- La tarjeta de onboarding pasa a superficie plana (se muestra sobre el vidrio de la ventana).
+- Pruebas: `swift test` verde; paquete construido y lanzado desde /Applications.

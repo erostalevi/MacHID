@@ -47,7 +47,7 @@ public struct OnboardingView: View {
         }
         .padding(26)
         .frame(width: 460)
-        .glassSurface(cornerRadius: 30)
+        .flatSurface(cornerRadius: 30)
         .onAppear { inputGranted = InputMonitoringPermission.isGranted }
     }
 

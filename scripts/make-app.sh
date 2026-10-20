@@ -32,6 +32,7 @@ SPARKLE="$(find "$BUILD_DIR/artifacts" -type d -name Sparkle.framework -path "*m
 mkdir -p "$APP/Contents/Frameworks"
 ditto "$SPARKLE" "$APP/Contents/Frameworks/Sparkle.framework"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/MacHID" 2>/dev/null || true
+cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp -R "$ROOT/Definitions" "$APP/Contents/Resources/Definitions"
 
 # String catalog -> .lproj/Localizable.strings (English text is the key, so English needs no file).
@@ -60,6 +61,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>MacHID</string>
   <key>CFBundleIdentifier</key><string>app.machid.MacHID</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleName</key><string>MacHID</string>
   <key>CFBundleDisplayName</key><string>MacHID</string>
   <key>CFBundlePackageType</key><string>APPL</string>
