@@ -15,40 +15,23 @@ public struct MenuPanelView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
+        VStack(alignment: .leading, spacing: 10) {
             if model.devices.isEmpty {
                 Text("No supported devices connected").font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 18)
+                    .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 14)
             } else {
-                GlassGroup(spacing: 10) {
-                    VStack(spacing: 10) {
-                        ForEach(model.devices) {
-                            DeviceCard(model: model, device: $0)
-                                .transition(.scale(scale: 0.94).combined(with: .opacity))
-                        }
-                    }
+                ForEach(Array(model.devices.enumerated()), id: \.element.id) { index, device in
+                    if index > 0 { Divider().opacity(0.5) }
+                    DeviceCard(model: model, device: device)
                 }
-                .motion(\.smooth, value: model.devices.map(\.id))
             }
             if !model.inputMonitoringGranted && !model.devices.isEmpty { permissionRow }
             if let remap { macrosSection(remap) }
-            Toggle("Pause automatic profiles", isOn: Binding(
-                get: { model.automation.paused }, set: { value in Task { await model.setAutomationPaused(value) } }))
-                .toggleStyle(.switch).font(.callout)
+            Divider().opacity(0.5)
             footer
         }
         .padding(14)
-        .frame(width: 340)
-    }
-
-    private var header: some View {
-        HStack {
-            Image(systemName: "dot.radiowaves.left.and.right").foregroundStyle(.tint)
-            Text("MacHID").font(.headline)
-            Spacer()
-            Circle().fill(model.devices.isEmpty ? Color.secondary : Color.green).frame(width: 8, height: 8)
-        }
+        .frame(width: 300)
     }
 
     @ViewBuilder private func macrosSection(_ remap: RemapController) -> some View {
@@ -76,7 +59,6 @@ public struct MenuPanelView: View {
                     .accessibilityHint(approved ? Text("") : Text("Needs your approval in Settings > Macros first"))
                 }
             }
-            .padding(12).glassSurface(cornerRadius: 20)
             .motion(\.smooth, value: remap.isRunning)
         }
     }
@@ -90,27 +72,34 @@ public struct MenuPanelView: View {
             Spacer()
             Button("Allow") { PermissionActions.requestInputMonitoring() }.buttonStyle(PillButtonStyle())
         }
-        .padding(10).glassSurface(cornerRadius: 16)
     }
 
     private var footer: some View {
-        HStack {
-            Button { show() } label: { Label("Open MacHID…", systemImage: "macwindow") }
-                .buttonStyle(PillButtonStyle())
+        HStack(spacing: 14) {
+            Button { show() } label: { Label("Open MacHID", systemImage: "macwindow") }
+            Spacer()
+            Button {
+                Task { await model.setAutomationPaused(!model.automation.paused) }
+            } label: { Image(systemName: model.automation.paused ? "pause.circle.fill" : "pause.circle") }
+                .help(model.automation.paused ? Text("Automatic profiles are paused") : Text("Pause automatic profiles"))
+                .accessibilityLabel(Text("Pause automatic profiles"))
+                .accessibilityAddTraits(model.automation.paused ? .isSelected : [])
             Button { openWindow(id: "settings"); NSApplication.shared.activate() } label: {
                 Image(systemName: "gearshape")
                     .overlay(alignment: .topTrailing) {
-                        if hasUpdates { Circle().fill(Color.red).frame(width: 8, height: 8).offset(x: 5, y: -4) }
+                        if hasUpdates { Circle().fill(Color.red).frame(width: 7, height: 7).offset(x: 4, y: -3) }
                     }
             }
-                .buttonStyle(PillButtonStyle())
                 .help(hasUpdates ? Text("Settings: plugin updates are available") : Text("Settings"))
                 .accessibilityLabel(hasUpdates ? Text("Settings, plugin updates available") : Text("Settings"))
-            Spacer()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(PillButtonStyle())
+            Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
                 .keyboardShortcut("q")
+                .help(Text("Quit"))
+                .accessibilityLabel(Text("Quit"))
         }
+        .buttonStyle(.plain)
+        .font(.callout)
+        .foregroundStyle(.secondary)
     }
 
     private func show() {
@@ -137,8 +126,6 @@ private struct DeviceCard: View {
             ForEach(quickSpecs) { spec in quickControl(spec) }
             if let lighting = lightingSpec { lightingMenu(lighting) }
         }
-        .padding(12)
-        .glassSurface(cornerRadius: 20)
     }
 
     /// The most useful controls at a glance: lighting brightness, DPI and the on/off of the backlight.
@@ -154,7 +141,7 @@ private struct DeviceCard: View {
     @ViewBuilder private func quickControl(_ spec: ControlSpec) -> some View {
         if case .slider(let min, let max, let step, _) = spec.kind {
             HStack(spacing: 10) {
-                Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
+                Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
                 Slider(value: Binding(
                     get: { if case .int(let value)? = device.values[spec.id] { Double(value) } else { Double(min) } },
                     set: { model.set(.int(Int($0.rounded())), capability: spec.id, on: device.id) }),
@@ -175,7 +162,7 @@ private struct DeviceCard: View {
         let modes: [String] = { if case .lighting(let modes) = spec.kind { return modes }; return [] }()
         let current = LightingModes.mode(of: device.values[spec.id])
         return HStack(spacing: 10) {
-            Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
+            Titles.control(spec.id).font(.caption).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
             Menu {
                 ForEach(modes, id: \.self) { mode in
                     Button {

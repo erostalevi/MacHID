@@ -212,6 +212,6 @@ struct ControlPanel: View {
         }
         .padding(22)
         .frame(maxWidth: 560, alignment: .leading)
-        .glassSurface(cornerRadius: 28)
+        .flatSurface(cornerRadius: 24)
     }
 }

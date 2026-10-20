@@ -15,7 +15,6 @@ public struct MainWindowView: View {
 
     public var body: some View {
         ZStack {
-            backdrop
             if let device = model.selectedDevice {
                 VStack(spacing: 20) {
                     topBar(device)
@@ -28,16 +27,16 @@ public struct MainWindowView: View {
                         }
                     }
                         .id(device.id)
-                        .transition(.blurReplace)
+                        .transition(.opacity)
                     sectionChips(device)
                     if sections(of: device).contains(effectiveSection(device)) {
                         ControlPanel(model: model, device: device, section: effectiveSection(device))
                             .id(effectiveSection(device))
-                            .transition(.blurReplace.combined(with: .offset(y: 8)))
+                            .transition(.opacity)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(28)
+                .padding(.horizontal, 28).padding(.top, 40).padding(.bottom, 28)
                 .motion(\.smooth, value: effectiveSection(device))
             } else if !model.hasScanned {
                 loadingState
@@ -64,21 +63,13 @@ public struct MainWindowView: View {
             .padding(20)
         }
         .frame(minWidth: 680, minHeight: 600)
+        .glassPanelWindow()
         .motion(\.smooth, value: model.selectedDeviceID)
         .motion(\.smooth, value: model.banner)
         .motion(\.smooth, value: model.hasScanned)
     }
 
     // MARK: Pieces
-
-    private var backdrop: some View {
-        ZStack {
-            Rectangle().fill(.background)
-            LinearGradient(colors: [(model.selectedDevice.map(accent(for:)) ?? .accentColor).opacity(0.28), .clear],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
-        .ignoresSafeArea()
-    }
 
     private func topBar(_ device: AppModel.DeviceEntry) -> some View {
         GlassGroup(spacing: 12) {
@@ -176,7 +167,7 @@ public struct MainWindowView: View {
             }
         }
         .padding(5)
-        .glassSurface(cornerRadius: 26)
+        .flatSurface(cornerRadius: 26)
     }
 
     private var emptyState: some View {
@@ -187,7 +178,7 @@ public struct MainWindowView: View {
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(40)
-        .glassSurface(cornerRadius: 32)
+        .flatSurface(cornerRadius: 32)
     }
 
     private var loadingState: some View {
@@ -196,7 +187,7 @@ public struct MainWindowView: View {
             Text("Looking for devices…").foregroundStyle(.secondary)
         }
         .padding(40)
-        .glassSurface(cornerRadius: 32)
+        .flatSurface(cornerRadius: 32)
         .transition(.opacity)
         .accessibilityElement(children: .combine)
     }
@@ -209,7 +200,7 @@ public struct MainWindowView: View {
                 .accessibilityLabel(Text("Dismiss"))
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
-        .glassSurface(cornerRadius: 22)
+        .flatSurface(cornerRadius: 22)
     }
 
     private var permissionPill: some View {
@@ -219,7 +210,7 @@ public struct MainWindowView: View {
             Button("Allow") { PermissionActions.requestInputMonitoring() }.buttonStyle(PillButtonStyle())
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
-        .glassSurface(cornerRadius: 22)
+        .flatSurface(cornerRadius: 22)
     }
 
     // MARK: Helpers

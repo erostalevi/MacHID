@@ -10,14 +10,11 @@ struct DeviceArt: View {
     /// Capability ids that have controls; only their hotspots are interactive.
     var interactive: Set<String> = []
     var onHotspot: (String) -> Void = { _ in }
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         ZStack {
             Circle()
-                .fill(accent.opacity(0.35))
-                .blur(radius: 60)
-                .frame(width: 260, height: 260)
+                .fill(RadialGradient(colors: [accent.opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: 150))
+                .frame(width: 300, height: 300)
             if let artwork {
                 ArtworkView(artwork: artwork, accent: accent, interactive: interactive, onHotspot: onHotspot)
             } else {
@@ -29,7 +26,6 @@ struct DeviceArt: View {
             }
             }
         }
-        .modifier(IdleFloat(enabled: !reduceMotion))
         .frame(height: 240)
         .accessibilityElement(children: artwork == nil ? .ignore : .contain)
         .accessibilityLabel(Text("Device illustration"))
@@ -62,6 +58,8 @@ private struct KeyboardShape: View {
                 .fill(.white.opacity(0.08))
                 .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white.opacity(0.3), lineWidth: 1))
                 .frame(width: 400, height: 170)
+            RoundedRectangle(cornerRadius: 26, style: .continuous).fill(accent.opacity(0.18)).blur(radius: 18)
+                .frame(width: 380, height: 150)
             VStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { row in
                     HStack(spacing: 8) {
@@ -69,7 +67,6 @@ private struct KeyboardShape: View {
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .fill(accent.opacity(0.75))
                                 .frame(width: row == 3 && column == 2 ? 120 : 22, height: 22)
-                                .shadow(color: accent.opacity(0.8), radius: 5)
                         }
                     }
                 }
@@ -92,23 +89,6 @@ private struct CameraShape: View {
         }
     }
 }
-
-/// A slow, barely visible bob so the device feels alive; off with "Reduce motion".
-private struct IdleFloat: ViewModifier {
-    let enabled: Bool
-
-    func body(content: Content) -> some View {
-        if enabled {
-            TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                content.offset(y: sin(t * 0.9) * 4).rotationEffect(.degrees(sin(t * 0.6) * 0.6))
-            }
-        } else {
-            content
-        }
-    }
-}
-
 
 /// A device drawing with its hotspots: faint rings that light up on hover and open that capability's controls.
 private struct ArtworkView: View {

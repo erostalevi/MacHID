@@ -46,7 +46,27 @@ struct GlassSurface: ViewModifier {
     #endif
 }
 
+/// A cheap translucent card for use inside the glass window: a faint fill and a hairline, no extra glass layer
+/// (nested glass is what made the window slow).
+struct FlatSurface: ViewModifier {
+    var cornerRadius: CGFloat
+    var tint: Color?
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .background(reduceTransparency ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+                                           : AnyShapeStyle((tint ?? .white).opacity(tint == nil ? 0.10 : 0.28)), in: shape)
+            .overlay(shape.strokeBorder(.white.opacity(0.14), lineWidth: 1))
+    }
+}
+
 extension View {
+    func flatSurface(cornerRadius: CGFloat = 20, tint: Color? = nil) -> some View {
+        modifier(FlatSurface(cornerRadius: cornerRadius, tint: tint))
+    }
+
     func glassSurface(cornerRadius: CGFloat = 24, tint: Color? = nil, interactive: Bool = false) -> some View {
         modifier(GlassSurface(cornerRadius: cornerRadius, tint: tint, interactive: interactive))
     }
@@ -116,7 +136,7 @@ struct PillButtonStyle: ButtonStyle {
                 .font(.callout.weight(selected ? .semibold : .regular))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .glassSurface(cornerRadius: 20, tint: selected ? (tint ?? .accentColor) : nil, interactive: true)
+                .flatSurface(cornerRadius: 20, tint: selected ? (tint ?? .accentColor) : nil)
                 .scaleEffect(configuration.isPressed ? 0.94 : (hovering && enabled ? 1.03 : 1))
                 .opacity(enabled ? 1 : 0.5)
                 .animation(motion.press, value: configuration.isPressed)

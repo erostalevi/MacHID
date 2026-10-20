@@ -60,6 +60,7 @@ struct MacHIDApp: App {
         Window("MacHID", id: "main") {
             MainWindowView(model: model, remap: remap)
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 760, height: 660)
 
