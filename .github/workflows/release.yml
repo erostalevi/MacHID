@@ -109,7 +109,10 @@ jobs:
           NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
         run: |
           version="${{ steps.version.outputs.version }}"
-          REGISTRY_PUBLIC_KEY="${{ vars.REGISTRY_PUBLIC_KEY }}" OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
+          export REGISTRY_PUBLIC_KEY="${{ vars.REGISTRY_PUBLIC_KEY }}" SPARKLE_PUBLIC_KEY="${{ vars.SPARKLE_PUBLIC_KEY }}"
+          # The app's version is the release version; Sparkle compares the build number, which only goes up.
+          export APP_VERSION="$version" BUILD_NUMBER="$(git rev-list --count HEAD)"
+          OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
           mkdir -p "$RUNNER_TEMP/dmg" dist
           cp -R "$RUNNER_TEMP/app/MacHID.app" "$RUNNER_TEMP/dmg/"
           ln -s /Applications "$RUNNER_TEMP/dmg/Applications"
@@ -122,7 +125,24 @@ jobs:
           xcrun stapler staple "dist/MacHID-${version}.dmg"
           (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS)
 
-      # Sparkle appcast and the Homebrew cask update arrive with the auto-update milestone (SPEC §15).
+      - name: Generate the update feed (appcast.xml)
+        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true' && env.SPARKLE_ED_PRIVATE_KEY != ''
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p "$RUNNER_TEMP/appcast"
+          cp "dist/MacHID-${version}.dmg" "$RUNNER_TEMP/appcast/"
+          key="$RUNNER_TEMP/sparkle-ed.key"
+          (umask 077; printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$key")
+          tool="$(find "$RUNNER_TEMP/app-build/artifacts" -path '*Sparkle/bin/generate_appcast' | head -1)"
+          "$tool" --ed-key-file "$key" \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/v${version}/" \
+            "$RUNNER_TEMP/appcast"
+          rm -f "$key"
+          cp "$RUNNER_TEMP/appcast/appcast.xml" dist/appcast.xml
+
+      # The Homebrew cask update is added once a tap repository exists.
 
       - name: Create GitHub release
         if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'

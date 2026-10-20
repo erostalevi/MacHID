@@ -24,6 +24,7 @@ struct MacHIDApp: App {
     @State private var model: AppModel
     @State private var remap = RemapController.live()
     @State private var plugins: PluginsModel
+    @State private var updater = UpdaterModel()
 
     init() {
         let model = AppModel.live()
@@ -63,7 +64,7 @@ struct MacHIDApp: App {
         .defaultSize(width: 760, height: 660)
 
         Window("Settings", id: "settings") {
-            SettingsView(model: model, remap: remap, plugins: plugins)
+            SettingsView(model: model, remap: remap, plugins: plugins, updater: updater)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 600, height: 620)

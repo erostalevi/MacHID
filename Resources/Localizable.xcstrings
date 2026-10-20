@@ -1881,6 +1881,72 @@
           }
         }
       }
+    },
+    "Updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones"
+          }
+        }
+      }
+    },
+    "Check for updates…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar actualizaciones…"
+          }
+        }
+      }
+    },
+    "Check for updates automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar actualizaciones automáticamente"
+          }
+        }
+      }
+    },
+    "Download and install updates in the background": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descargar e instalar actualizaciones en segundo plano"
+          }
+        }
+      }
+    },
+    "Updates come from this project's GitHub releases and are installed only if they carry the project's signature.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen de las versiones de GitHub de este proyecto y solo se instalan si llevan la firma del proyecto."
+          }
+        }
+      }
+    },
+    "This build cannot update itself because it was not built with the project's update key. Download releases from GitHub instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión no puede actualizarse sola porque no se compiló con la clave de actualización del proyecto. Descarga las versiones desde GitHub."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

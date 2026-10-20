@@ -11,6 +11,10 @@ let package = Package(
         .executable(name: "MacHIDApp", targets: ["MacHIDApp"]),
         .executable(name: "machid-validate", targets: ["machid-validate"]),
     ],
+    dependencies: [
+        // Auto-update of the app (MIT license). Updates are verified with an EdDSA key before they are installed.
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.4"),
+    ],
     targets: [
         // Pure domain: no IOKit/AppKit/SwiftUI. Hardware sits behind ports.
         .target(name: "MacHIDDomain"),
@@ -29,7 +33,8 @@ let package = Package(
         // Composition: picks the driver family and transport for a device. Shared by the CLI and the app.
         .target(name: "MacHIDSystem", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDRazer", "MacHIDLogitech", "MacHIDUVC"]),
         // SwiftUI models and views (menu bar panel and main window). Logic lives here so it can be tested.
-        .target(name: "MacHIDUI", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem", "MacHIDQuartz"]),
+        .target(name: "MacHIDUI", dependencies: ["MacHIDDomain", "MacHIDApplication", "MacHIDIOKit", "MacHIDSystem", "MacHIDQuartz",
+                                                 .product(name: "Sparkle", package: "Sparkle")]),
         .executableTarget(name: "MacHIDApp", dependencies: ["MacHIDUI"]),
         // Design review tool: renders the views to PNG files offscreen.
         .executableTarget(name: "MacHIDSnapshots", dependencies: ["MacHIDUI", "MacHIDDomain"]),

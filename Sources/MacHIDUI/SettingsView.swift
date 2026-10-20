@@ -7,16 +7,18 @@ public struct SettingsView: View {
     @Bindable var model: AppModel
     @Bindable var remap: RemapController
     @Bindable var plugins: PluginsModel
+    @Bindable var updater: UpdaterModel
 
-    public init(model: AppModel, remap: RemapController, plugins: PluginsModel) {
+    public init(model: AppModel, remap: RemapController, plugins: PluginsModel, updater: UpdaterModel) {
         self.model = model
         self.remap = remap
         self.plugins = plugins
+        self.updater = updater
     }
 
     public var body: some View {
         TabView {
-            GeneralSettings(model: model)
+            GeneralSettings(model: model, updater: updater)
                 .tabItem { Label("General", systemImage: "gearshape") }
             RemapView(remap: remap)
                 .tabItem { Label("Remap", systemImage: "keyboard") }
@@ -32,6 +34,7 @@ public struct SettingsView: View {
 
 private struct GeneralSettings: View {
     @Bindable var model: AppModel
+    @Bindable var updater: UpdaterModel
     @State private var launchAtLogin = LoginItem.isEnabled
     @State private var loginError: String?
     @State private var addingRule = false
@@ -40,6 +43,7 @@ private struct GeneralSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 general
+                updates
                 defaults
                 rules
             }
@@ -70,6 +74,28 @@ private struct GeneralSettings: View {
                 get: { model.automation.applyOnConnect }, set: { value in Task { await model.setApplyOnConnect(value) } }))
             Toggle("Pause automatic profiles", isOn: Binding(
                 get: { model.automation.paused }, set: { value in Task { await model.setAutomationPaused(value) } }))
+        }
+    }
+
+    private var updates: some View {
+        card(Text("Updates")) {
+            if updater.isAvailable {
+                HStack {
+                    Button { updater.checkForUpdates() } label: { Label("Check for updates…", systemImage: "arrow.triangle.2.circlepath") }
+                        .buttonStyle(PillButtonStyle()).disabled(!updater.canCheck)
+                    Spacer()
+                    if let last = updater.lastCheck {
+                        (Text("Checked ") + Text(last, format: .relative(presentation: .numeric))).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Toggle("Check for updates automatically", isOn: $updater.automaticChecks)
+                Toggle("Download and install updates in the background", isOn: $updater.automaticDownloads)
+                Text("Updates come from this project's GitHub releases and are installed only if they carry the project's signature.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("This build cannot update itself because it was not built with the project's update key. Download releases from GitHub instead.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 
