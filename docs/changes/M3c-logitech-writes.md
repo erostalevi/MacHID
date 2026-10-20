@@ -32,3 +32,17 @@ Permitir cambiar DPI y color de iluminación del G203 de forma volátil, con com
 ## Pruebas
 - Ejecutadas: suite completa (71 pruebas) y validación de definiciones.
 - Recomendadas en el dispositivo, por etapas: (1) `get dpi`, `set dpi 1600`, `get dpi`, `set dpi 3200`; (2) `set backlight` con un color y `set device_mode 0`.
+
+## Hallazgo: el G203 usa RGB_EFFECTS (0x8071), no COLOR_LED_EFFECTS (0x8070)
+Lectura del listado de features en el G203 real (`machid get 046d:c092 features`, solo lectura): `0:0000 1:0001 2:0003 3:0005 4:1801 5:1802 6:1806 7:1e00 8:1e22 9:1eb0 10:2201 11:18b1 12:00c2 13:8060 14:8071 15:8100 16:8110 17:18a1 18:8081`. No existe 0x8070; el primer intento de luces falló limpiamente (`feature 0x8070 is not available`) sin enviar nada. El índice 14 (0x0e) coincide con los paquetes `11 ff 0e …` de la comunidad.
+
+Implementado según las fuentes abiertas (Solaar, GPL-2.0-or-later, y libratbag para los formatos de información):
+- Información 0x8071, función 0: `[0xFF,0xFF,0]` → nº de zonas en el byte 2; `[zona,0xFF,0]` → nº de efectos en el byte 4; `[zona,posición,0]` → id de efecto (BE16) en los bytes 2-3.
+- Control del host: perfiles onboard (0x8100) función 1 = `[2]` (modo host) y 0x8071 función 5 `[1,3,4]` (SetSWControl). Liberar: `[1,0,0]` y luego perfiles `[1]`.
+- Fijar efecto: función 1 con `[zona, posición, 10 bytes de parámetros, 0x01]` (color RGB en los 3 primeros). Solaar lo describe como efecto estático "no persistente" para 0x8071.
+- `off`: efecto id 0 si existe; si no, estático en negro.
+- `device_mode` en 0x8071: leer = función 5 sin parámetros (modo en el byte 1); escribir 1 reclama y 0 libera.
+
+Riesgo conocido: el byte final `0x01` de 0x8071 se toma de un único comentario de Solaar (probado allí en otro mouse); si el G203 conserva el color tras desconectarlo, esa bandera hay que revisarla. Mientras el mouse esté en modo host los botones del perfil onboard pueden comportarse distinto; `device_mode 0` lo revierte.
+
+Pruebas: 81 pruebas unitarias en total (21 de HID++ nuevas, con un mouse simulado de 0x8071).

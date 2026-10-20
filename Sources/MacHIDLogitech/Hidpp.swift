@@ -143,5 +143,6 @@ public enum HidppFeature {
     public static let featureSet: UInt16 = 0x0001
     public static let adjustableDPI: UInt16 = 0x2201
     public static let colorLEDEffects: UInt16 = 0x8070
+    public static let onboardProfiles: UInt16 = 0x8100
     public static let rgbEffects: UInt16 = 0x8071
 }

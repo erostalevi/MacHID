@@ -296,3 +296,103 @@ private func calls(_ transport: FakeHidppTransport) async -> [(feature: UInt8, f
         await #expect(throws: HidppError.featureNotFound(0x0001)) { try await HidppClient(transport: transport, timeout: .milliseconds(200)).listFeatures() }
     }
 }
+
+// MARK: - Mouse with RGB_EFFECTS (0x8071), like the G203 LIGHTSYNC
+
+private let rgbFeature: UInt8 = 14
+private let profilesFeature: UInt8 = 15
+
+/// 0x8070 absent; 0x8071 at index 14 with one zone; 0x8100 (onboard profiles) at index 15.
+private func simulatedRGBMouse(effectIDs: [UInt16] = [1, 3], swMode: UInt8 = 0, hasProfiles: Bool = true)
+    -> @Sendable (HidppMessage) -> [(UInt8, [UInt8])] {
+    return { request in
+        func answer(_ parameters: [UInt8]) -> [(UInt8, [UInt8])] { [reply(to: request, parameters: parameters)] }
+        switch (request.featureIndex, request.function) {
+        case (0x00, 0):
+            switch UInt16(request.parameters[0]) << 8 | UInt16(request.parameters[1]) {
+            case 0x8071: return answer([rgbFeature, 0, 1])
+            case 0x8100: return hasProfiles ? answer([profilesFeature, 0, 1]) : answer([0, 0, 0])
+            default: return answer([0, 0, 0])
+            }
+        case (rgbFeature, 0):
+            if request.parameters[0] == 0xFF { return answer([0xFF, 0xFF, 1, 0, 0, 0, 1]) }          // device info: 1 zone
+            if request.parameters[1] == 0xFF { return answer([0, 0xFF, 0, 1, UInt8(effectIDs.count)]) } // zone info
+            let id = effectIDs[Int(request.parameters[1])]
+            return answer([0, request.parameters[1], UInt8(id >> 8), UInt8(id & 0xFF), 0, 0, 0, 0])    // effect info
+        case (rgbFeature, 5):
+            return request.parameters[0] == 1 ? answer(request.parameters) : answer([0, swMode, 0])
+        case (rgbFeature, 1), (profilesFeature, 1): return answer(request.parameters)
+        default: return []
+        }
+    }
+}
+
+@Suite struct RGBEffectsTests {
+    @Test func staticColorClaimsControlThenSetsEffect() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [3, 1]))
+        try await HidppDriver().write(.color(RGBColor(r: 0xFF, g: 0x20, b: 0x10)), to: backlightCapability, using: transport)
+        let sent = await calls(transport)
+        let rgb = sent.filter { $0.feature == rgbFeature || $0.feature == profilesFeature }
+        // host mode for onboard profiles, SetSWControl(3, flag 4), device info, zone info, 2 effect infos, set effect
+        #expect(rgb.map(\.function) == [1, 5, 0, 0, 0, 0, 1])
+        #expect(rgb[0].feature == profilesFeature && rgb[0].parameters[0] == 2)
+        #expect(Array(rgb[1].parameters.prefix(3)) == [1, 3, 4])
+        let set = try #require(rgb.last)
+        // effect id 1 (fixed) is at position 1; 10 parameter bytes (r, g, b, zeros), then the flag byte
+        #expect(Array(set.parameters.prefix(13)) == [0, 1, 0xFF, 0x20, 0x10, 0, 0, 0, 0, 0, 0, 0, 1])
+    }
+
+    @Test func offUsesDisabledEffectWhenPresent() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [1, 0]))
+        try await HidppDriver().write(.text("off"), to: backlightCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(set.feature == rgbFeature && set.function == 1)
+        #expect(set.parameters[1] == 1 && set.parameters[2] == 0)     // disabled effect is at position 1
+    }
+
+    @Test func offFallsBackToBlackWhenThereIsNoDisabledEffect() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [3, 1]))
+        try await HidppDriver().write(.text("off"), to: backlightCapability, using: transport)
+        let set = try #require(await calls(transport).last)
+        #expect(Array(set.parameters.prefix(5)) == [0, 1, 0, 0, 0])   // fixed effect (position 1) in black
+    }
+
+    @Test func missingEffectsFailBeforeSetting() async {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(effectIDs: [3, 4]))
+        await #expect(throws: DriverError.self) {
+            try await HidppDriver().write(.color(RGBColor(r: 1, g: 1, b: 1)), to: backlightCapability, using: transport)
+        }
+        #expect(await calls(transport).allSatisfy { !($0.feature == rgbFeature && $0.function == 1) })
+    }
+
+    @Test func deviceModeClaimAndRelease() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(swMode: 3))
+        #expect(try await HidppDriver().read(modeCapability, using: transport) == .int(1))
+        try await HidppDriver().write(.int(1), to: modeCapability, using: transport)
+        try await HidppDriver().write(.int(0), to: modeCapability, using: transport)
+        let sent = await calls(transport).filter { $0.feature == rgbFeature || $0.feature == profilesFeature }
+        // read, claim (profiles 2, sw control), release (sw control off, profiles 1)
+        #expect(sent.map(\.function) == [5, 1, 5, 5, 1])
+        #expect(Array(sent[2].parameters.prefix(3)) == [1, 3, 4])
+        #expect(Array(sent[3].parameters.prefix(3)) == [1, 0, 0])
+        #expect(sent[4].feature == profilesFeature && sent[4].parameters[0] == 1)
+    }
+
+    @Test func deviceModeReadsZeroWhenReleased() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(swMode: 0))
+        #expect(try await HidppDriver().read(modeCapability, using: transport) == .int(0))
+    }
+
+    @Test func worksWithoutOnboardProfilesFeature() async throws {
+        let transport = FakeHidppTransport(script: simulatedRGBMouse(hasProfiles: false))
+        try await HidppDriver().write(.color(RGBColor(r: 1, g: 2, b: 3)), to: backlightCapability, using: transport)
+        #expect(await calls(transport).allSatisfy { $0.feature != profilesFeature })
+    }
+
+    @Test func noLightingFeatureIsAClearError() async {
+        let transport = FakeHidppTransport(script: { request in [reply(to: request, parameters: [0, 0, 0])] })
+        await #expect(throws: DriverError.self) {
+            try await HidppDriver().write(.color(RGBColor(r: 1, g: 1, b: 1)), to: backlightCapability, using: transport)
+        }
+    }
+}
