@@ -99,7 +99,8 @@ jobs:
 
       - name: Updates are not signed
         if: steps.guard.outputs.exists != 'true' && env.HAVE_SPARKLE != 'true'
-        run: echo "::warning::SPARKLE_ED_PRIVATE_KEY is not set: this release has no appcast.xml, so installed apps will not see it. See docs/RELEASE.md."
+        run: |
+          echo "::warning::SPARKLE_ED_PRIVATE_KEY is not set, so this release has no appcast.xml and installed apps will not see it. See docs/RELEASE.md."
 
       - name: Create GitHub release
         if: steps.guard.outputs.exists != 'true'
