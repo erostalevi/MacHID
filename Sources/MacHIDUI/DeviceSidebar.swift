@@ -1,7 +1,7 @@
 import SwiftUI
 import MacHIDDomain
 
-/// The settings column on the right of the window: section tabs on top, the controls of that section below.
+/// The settings column on the right of the window: three tabs (Light, Keys, Info), the controls of that tab below.
 struct DeviceSidebar: View {
     @Bindable var model: AppModel
     let device: AppModel.DeviceEntry
@@ -9,18 +9,18 @@ struct DeviceSidebar: View {
     var scenes: LightingScenesController?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var section: ControlSection {
-        device.sections.contains(model.selectedSection) ? model.selectedSection : (device.sections.first ?? .info)
+    private var tab: DeviceTab {
+        device.tabs.contains(model.selectedTab) ? model.selectedTab : (device.tabs.first ?? .info)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             tabs
-                .padding(.horizontal, Theme.inset).padding(.top, 44).padding(.bottom, 12)
+                .padding(.horizontal, Theme.inset).padding(.top, 44).padding(.bottom, 10)
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.gap) {
                     content
-                        .id(section)
+                        .id(tab)
                         .transition(.opacity)
                 }
                 .padding(.horizontal, Theme.inset).padding(.bottom, Theme.inset).padding(.top, 4)
@@ -31,50 +31,65 @@ struct DeviceSidebar: View {
                                  startPoint: .top, endPoint: .bottom))
         }
         .frame(width: Theme.sidebarWidth)
-        .animation(Motion(reduce: reduceMotion).snappy, value: section)
+        .animation(Motion(reduce: reduceMotion).snappy, value: tab)
     }
 
     private var tabs: some View {
-        HStack(spacing: 4) {
-            ForEach(device.sections, id: \.self) { candidate in
+        HStack(spacing: 2) {
+            ForEach(device.tabs, id: \.self) { candidate in
                 Button {
-                    withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedSection = candidate }
+                    withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedTab = candidate }
                 } label: {
-                    Image(systemName: Titles.symbol(for: candidate))
-                        .font(.system(size: 15, weight: candidate == section ? .semibold : .regular))
-                        .frame(maxWidth: .infinity, minHeight: 34)
-                        .foregroundStyle(candidate == section ? AnyShapeStyle(device.accent) : AnyShapeStyle(.secondary))
-                        .background {
-                            if candidate == section {
-                                RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous).fill(device.accent.opacity(0.22))
-                                    .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous).strokeBorder(device.accent.opacity(0.45), lineWidth: 1))
-                                    .matchedGeometryEffect(id: "tab", in: tabSpace)
-                            }
+                    HStack(spacing: 5) {
+                        Image(systemName: candidate.symbol).font(.system(size: 12, weight: candidate == tab ? .semibold : .regular))
+                        candidate.title.font(.callout.weight(candidate == tab ? .semibold : .regular))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .foregroundStyle(candidate == tab ? AnyShapeStyle(device.accent) : AnyShapeStyle(.secondary))
+                    .background {
+                        if candidate == tab {
+                            RoundedRectangle(cornerRadius: Theme.chipRadius - 2, style: .continuous).fill(device.accent.opacity(0.22))
+                                .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius - 2, style: .continuous).strokeBorder(device.accent.opacity(0.45), lineWidth: 1))
+                                .matchedGeometryEffect(id: "tab", in: tabSpace)
                         }
-                        .contentShape(Rectangle())
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(Titles.sectionName(candidate))
-                .accessibilityLabel(Titles.section(candidate))
-                .accessibilityAddTraits(candidate == section ? .isSelected : [])
+                .help(Text(verbatim: candidate.name))
+                .accessibilityLabel(candidate.title)
+                .accessibilityAddTraits(candidate == tab ? .isSelected : [])
             }
         }
         .padding(3)
-        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Theme.chipRadius + 3, style: .continuous))
+        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Theme.chipRadius + 1, style: .continuous))
     }
 
     @Namespace private var tabSpace
 
+    private func has(_ section: ControlSection) -> Bool { device.sections.contains(section) }
+
     @ViewBuilder private var content: some View {
-        HStack {
-            Titles.section(section).font(.title2.weight(.semibold))
-            Spacer()
-        }
-        switch section {
-        case .buttons:
-            ButtonsPanel(model: model, device: device, remap: remap)
-        default:
-            SpecsPanel(model: model, device: device, section: section, scenes: scenes, remap: remap)
+        switch tab {
+        case .light:
+            if has(.lighting) { SpecsPanel(model: model, device: device, section: .lighting, scenes: scenes, remap: remap) }
+            if has(.image) { SpecsPanel(model: model, device: device, section: .image, scenes: scenes, remap: remap) }
+        case .keys:
+            if has(.buttons) { ButtonsPanel(model: model, device: device, remap: remap) }
+            if has(.performance) {
+                // DPI and polling belong with the keys: they are what the device does, not how it looks.
+                DisclosureCard(title: Text("Performance"), symbol: Titles.symbol(for: .performance), expanded: device.category == .mouse) {
+                    SpecsPanel(model: model, device: device, section: .performance, scenes: scenes, remap: remap)
+                }
+            }
+        case .info:
+            if has(.info) { SpecsPanel(model: model, device: device, section: .info, scenes: scenes, remap: remap) }
+            else { Card { Text(verbatim: device.name).font(.callout.weight(.medium)); Text(verbatim: device.usbId.description).font(.caption.monospaced()).foregroundStyle(.secondary) } }
+            if has(.advanced) {
+                DisclosureCard(title: Text("Advanced"), symbol: Titles.symbol(for: .advanced)) {
+                    SpecsPanel(model: model, device: device, section: .advanced, scenes: scenes, remap: remap)
+                }
+            }
         }
     }
 }

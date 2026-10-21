@@ -4,16 +4,16 @@ import SwiftUI
 enum Theme {
     static let windowSize = CGSize(width: 1020, height: 680)
     static let sidebarWidth: CGFloat = 348
-    static let cardRadius: CGFloat = 18
-    static let chipRadius: CGFloat = 12
-    static let gap: CGFloat = 14
-    static let inset: CGFloat = 20
+    static let cardRadius: CGFloat = 14
+    static let chipRadius: CGFloat = 10
+    static let gap: CGFloat = 10
+    static let inset: CGFloat = 18
 }
 
 /// A group of related controls on a translucent card.
 struct Card<Content: View>: View {
     var title: Text?
-    var spacing: CGFloat = 14
+    var spacing: CGFloat = 10
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -21,7 +21,46 @@ struct Card<Content: View>: View {
             if let title { title.font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase).tracking(0.6) }
             content
         }
-        .padding(16)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .flatSurface(cornerRadius: Theme.cardRadius)
+    }
+}
+
+/// A card whose content folds away: a one-line header that opens on click. Keeps long panels compact.
+struct DisclosureCard<Content: View>: View {
+    var title: Text
+    var symbol: String?
+    var subtitle: Text?
+    @State private var expanded: Bool
+    @ViewBuilder var content: Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(title: Text, symbol: String? = nil, subtitle: Text? = nil, expanded: Bool = false, @ViewBuilder content: () -> Content) {
+        self.title = title; self.symbol = symbol; self.subtitle = subtitle
+        self._expanded = State(initialValue: expanded)
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button { withAnimation(Motion(reduce: reduceMotion).snappy) { expanded.toggle() } } label: {
+                HStack(spacing: 8) {
+                    if let symbol { Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 18) }
+                    title.font(.subheadline.weight(.semibold))
+                    if let subtitle { subtitle.font(.caption).foregroundStyle(.secondary) }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(expanded ? Text("Expanded") : Text("Collapsed"))
+            if expanded { content.transition(.opacity.combined(with: .move(edge: .top))) }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .flatSurface(cornerRadius: Theme.cardRadius)
     }

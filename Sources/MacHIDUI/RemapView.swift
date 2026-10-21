@@ -90,6 +90,7 @@ public struct RemapView: View {
         case .nextProfile: String(localized: "Next profile")
         case .previousProfile: String(localized: "Previous profile")
         case .toggleShiftMode(let id): remap.config.shiftMode(id: id).map { "Toggle “\($0.name)”" } ?? "Missing mode"
+        case .system(let id): SystemActionMenu.title(for: id)
         }
     }
 
@@ -131,7 +132,7 @@ private struct AddRemapRuleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("New rule").font(.headline)
-            LabeledContent("When I press") { KeyRecorder(capture: .keyOrMouse, current: trigger) { trigger = $0 } }
+            LabeledContent("When I press") { InputPicker(capture: .keyOrMouse, current: trigger) { trigger = $0 } }
             Picker("Do", selection: $kind) {
                 Text("Press a key").tag(Kind.key)
                 Text("Click a button").tag(Kind.button)
@@ -139,7 +140,7 @@ private struct AddRemapRuleView: View {
                 Text("Nothing").tag(Kind.disable)
             }
             switch kind {
-            case .key: LabeledContent("Press") { KeyRecorder(capture: .keyOnly, current: keyTarget) { keyTarget = $0 } }
+            case .key: LabeledContent("Press") { InputPicker(capture: .keyOnly, current: keyTarget, allowsModifierToggles: true) { keyTarget = $0 } }
             case .button:
                 Picker("Button", selection: $button) { ForEach([0, 1, 2, 3, 4], id: \.self) { Text(verbatim: KeyNames.mouseButton($0)).tag($0) } }
             case .macro:

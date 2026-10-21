@@ -11,7 +11,7 @@ struct AssignmentCard: View {
     var accent: Color = .accentColor
     var layers: Set<String> = []
 
-    enum Kind: Hashable { case original, key, button, macro, profile, shift, nothing }
+    enum Kind: Hashable { case original, key, button, system, macro, profile, shift, nothing }
 
     /// The action picked in the menu, kept until a rule exists for it (Key, Macro, Profile and Shift need one more choice).
     @State private var draft: Kind?
@@ -29,19 +29,21 @@ struct AssignmentCard: View {
         case .key?: .key
         case .mouseButton?: .button
         case .macro?: .macro
+        case .system?: .system
         case .switchProfile?, .nextProfile?, .previousProfile?: .profile
         case .toggleShiftMode?: .shift
         case .disable?: .nothing
         }
     }
 
-    private static let order: [Kind] = [.original, .key, .button, .macro, .profile, .shift, .nothing]
+    private static let order: [Kind] = [.original, .key, .button, .system, .macro, .profile, .shift, .nothing]
 
     private func name(_ kind: Kind) -> Text {
         switch kind {
         case .original: Text("Default")
         case .key: Text("Press a key")
         case .button: Text("Click a button")
+        case .system: Text("macOS action")
         case .macro: Text("Run a macro")
         case .profile: Text("Switch profile")
         case .shift: Text("Toggle a shift mode")
@@ -89,7 +91,7 @@ struct AssignmentCard: View {
             HStack {
                 Text("Types").font(.callout).foregroundStyle(.secondary)
                 Spacer()
-                KeyRecorder(capture: .keyOnly, current: currentKeyTrigger) { recorded in
+                InputPicker(capture: .keyOnly, current: currentKeyTrigger, allowsModifierToggles: true) { recorded in
                     save(.key(code: recorded.code, modifiers: recorded.modifiers))
                 }
             }
@@ -98,6 +100,9 @@ struct AssignmentCard: View {
                 ForEach([0, 1, 2, 3, 4], id: \.self) { Text(verbatim: KeyNames.mouseButton($0)).tag($0) }
             }
             .labelsHidden()
+        case .system:
+            SystemActionMenu(selection: currentSystem) { save(.system($0)) }
+            Text("Navigation like the trackpad gestures: Mission Control, switch desktop, App Exposé, media keys.").font(.caption).foregroundStyle(.secondary)
         case .macro:
             if remap.config.macros.isEmpty {
                 Text("No macros yet.").font(.callout).foregroundStyle(.secondary)
@@ -165,6 +170,7 @@ struct AssignmentCard: View {
     private var currentKeyTrigger: InputTrigger? {
         if case .key(let code, let modifiers)? = rule?.action { InputTrigger(kind: .keyboard, code: code, modifiers: modifiers) } else { nil }
     }
+    private var currentSystem: String? { if case .system(let id)? = rule?.action { id } else { nil } }
     private var currentButton: Int { if case .mouseButton(let value)? = rule?.action { value } else { 2 } }
     private var currentMacro: String? { if case .macro(let id)? = rule?.action { id } else { nil } }
     private var currentShiftMode: String? { if case .toggleShiftMode(let id)? = rule?.action { id } else { nil } }
@@ -176,7 +182,7 @@ struct AssignmentCard: View {
         case .nothing: save(.disable)
         case .button: save(.mouseButton(currentButton))
         case .macro: if let first = remap.config.macros.first { save(.macro(currentMacro ?? first.id)) }
-        case .key, .profile, .shift: break   // wait for the choice
+        case .key, .profile, .shift, .system: break   // wait for the choice
         }
     }
 
@@ -232,7 +238,16 @@ struct ButtonsPanel: View {
                 case .mouse: mouseButtons(remap)
                 default: keyboardKeys(remap)
                 }
-                ShiftModesCard(remap: remap, model: model, accent: device.accent)
+                DisclosureCard(title: Text("Shift modes"), symbol: "arrow.up.square",
+                               subtitle: remap.config.shiftModes.isEmpty ? nil : Text("\(remap.config.shiftModes.count)"),
+                               expanded: !remap.config.shiftModes.isEmpty) {
+                    ShiftModesManager(remap: remap, model: model, accent: device.accent)
+                }
+                DisclosureCard(title: Text("Shift gestures"), symbol: "hand.draw",
+                               subtitle: remap.config.gestures.isEmpty ? nil : Text("\(remap.config.gestures.count)"),
+                               expanded: !remap.config.gestures.isEmpty) {
+                    GesturesManager(remap: remap, accent: device.accent)
+                }
             } else {
                 Text("Remapping is not available.").foregroundStyle(.secondary)
             }
@@ -286,7 +301,7 @@ struct ButtonsPanel: View {
             } else {
                 Card {
                     Text("Select a key on the keyboard, or press one, to change what it does.").font(.callout).foregroundStyle(.secondary)
-                    KeyRecorder(capture: .keyOnly, current: nil) { recorded in
+                    InputPicker(capture: .keyOnly, current: nil) { recorded in
                         if let id = KeyboardKeyCodes.keyID(forCode: recorded.code) { model.selectedInput = id }
                     }
                 }
@@ -328,6 +343,7 @@ struct ButtonsPanel: View {
         case .nextProfile: return String(localized: "Next profile")
         case .previousProfile: return String(localized: "Previous profile")
         case .toggleShiftMode(let id): return remap.config.shiftMode(id: id)?.name ?? String(localized: "Missing shift mode")
+        case .system(let id): return SystemActionMenu.title(for: id)
         }
     }
 }
@@ -342,9 +358,9 @@ struct LayerPicker: View {
         if !remap.config.shiftModes.isEmpty {
             Card(title: Text("Layer")) {
                 FlowRow(spacing: 8) {
-                    chip(title: Text("Base"), selected: model.selectedLayers.isEmpty, live: false) { model.selectedLayers = [] }
+                    chip(title: Text("Base \(ShiftModeDiagnostics.ruleCount(in: remap.config, layer: []))"), selected: model.selectedLayers.isEmpty, live: false) { model.selectedLayers = [] }
                     ForEach(remap.config.shiftModes) { mode in
-                        chip(title: Text(verbatim: mode.name), selected: model.selectedLayers.contains(mode.id), live: remap.activeShiftModes.contains(mode.id)) {
+                        chip(title: Text(verbatim: "\(mode.name) \(ShiftModeDiagnostics.ruleCount(in: remap.config, mode: mode.id))"), selected: model.selectedLayers.contains(mode.id), live: remap.activeShiftModes.contains(mode.id)) {
                             if model.selectedLayers.contains(mode.id) { model.selectedLayers.remove(mode.id) } else { model.selectedLayers.insert(mode.id) }
                         }
                     }
@@ -365,85 +381,6 @@ struct LayerPicker: View {
         }
         .buttonStyle(PillButtonStyle(tint: accent, selected: selected))
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
-/// Create and edit shift modes: a trigger, hold or toggle, and whether other devices are shifted too.
-struct ShiftModesCard: View {
-    @Bindable var remap: RemapController
-    @Bindable var model: AppModel
-    var accent: Color
-
-    var body: some View {
-        Card(title: Text("Shift modes")) {
-            Text("A shift mode changes what other keys and buttons do while it is on. Make as many as you like; they work independently and can be combined.")
-                .font(.caption).foregroundStyle(.secondary)
-            ForEach(remap.config.shiftModes) { mode in
-                ShiftModeRow(remap: remap, model: model, mode: mode, accent: accent)
-                if mode.id != remap.config.shiftModes.last?.id { Divider().opacity(0.4) }
-            }
-            Button { add() } label: { Label("New shift mode", systemImage: "plus") }
-                .buttonStyle(PillButtonStyle())
-        }
-    }
-
-    private func add() {
-        // A placeholder trigger the user replaces right away; Right Option is rarely used by itself.
-        let number = remap.config.shiftModes.count + 1
-        let mode = ShiftMode(id: UUID().uuidString, name: String(localized: "Shift \(number)"),
-                             trigger: InputTrigger(kind: .keyboard, code: 61), behavior: .hold, affectsOtherDevices: true)
-        Task { if await remap.upsertShiftMode(mode) { model.selectedLayers = [mode.id] } }
-    }
-}
-
-private struct ShiftModeRow: View {
-    @Bindable var remap: RemapController
-    @Bindable var model: AppModel
-    let mode: ShiftMode
-    var accent: Color
-    @State private var name = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Circle().fill(remap.activeShiftModes.contains(mode.id) ? Color.green : Color.primary.opacity(0.2)).frame(width: 8, height: 8)
-                TextField("Name", text: $name).textFieldStyle(.plain).font(.callout.weight(.semibold))
-                    .onSubmit { rename() }
-                Spacer()
-                Button { Task { await remap.removeShiftMode(mode.id); model.selectedLayers.remove(mode.id) } } label: { Image(systemName: "trash") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove shift mode and its rules")
-            }
-            HStack {
-                Text("Trigger").font(.callout).foregroundStyle(.secondary)
-                Spacer()
-                KeyRecorder(capture: .keyOrMouse, current: mode.trigger, allowsModifierKeys: true) { recorded in
-                    var copy = mode
-                    copy.trigger = InputTrigger(kind: recorded.kind, code: recorded.code, modifiers: [])
-                    Task { await remap.upsertShiftMode(copy) }
-                }
-            }
-            Segmented(options: ShiftBehavior.allCases, selection: Binding(get: { mode.behavior }, set: { value in
-                var copy = mode; copy.behavior = value; Task { await remap.upsertShiftMode(copy) }
-            }), tint: accent) { $0 == .hold ? Text("While held") : Text("Toggle on/off") }
-            Toggle(isOn: Binding(get: { mode.affectsOtherDevices }, set: { value in
-                var copy = mode; copy.affectsOtherDevices = value; Task { await remap.upsertShiftMode(copy) }
-            })) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Also shifts other devices").font(.callout)
-                    Text(mode.affectsOtherDevices ? "Keyboard and mouse both change." : "Only the same kind of device changes.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .toggleStyle(.switch)
-        }
-        .onAppear { name = mode.name }
-        .onChange(of: mode.name) { _, new in name = new }
-    }
-
-    private func rename() {
-        var copy = mode
-        copy.name = name.trimmingCharacters(in: .whitespaces).isEmpty ? mode.name : name
-        Task { await remap.upsertShiftMode(copy) }
     }
 }
 

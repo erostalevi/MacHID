@@ -35,6 +35,7 @@ public struct MainWindowView: View {
             notices
         }
         .frame(width: Theme.windowSize.width, height: Theme.windowSize.height)
+        .resignsFocusOnBackgroundTap()
         .glassPanelWindow()
         .motion(\.smooth, value: model.selectedDeviceID)
         .motion(\.smooth, value: model.banner)
@@ -46,7 +47,7 @@ public struct MainWindowView: View {
     private func stage(_ device: AppModel.DeviceEntry) -> some View {
         ZStack {
             DeviceStage(model: model, device: device, remap: remap, scenes: scenes) { _ in
-                withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedSection = .buttons }
+                withAnimation(Motion(reduce: reduceMotion).snappy) { model.selectedTab = .keys }
             }
             VStack(spacing: 0) {
                 header(device)
@@ -149,7 +150,7 @@ public struct MainWindowView: View {
                         Text("Save profile").font(.headline)
                         TextField("Profile name", text: $profileName)
                             .textFieldStyle(.roundedBorder).frame(width: 220)
-                            .onSubmit { saveProfile(device) }
+                            .commitsAndResigns { saveProfile(device) }
                         HStack {
                             Spacer()
                             Button("Save") { saveProfile(device) }.keyboardShortcut(.defaultAction)

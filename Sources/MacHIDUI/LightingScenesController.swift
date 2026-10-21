@@ -24,6 +24,9 @@ public final class LightingScenesController {
     public private(set) var keyEvents: [KeyEvent] = []
     public var banner: String?
 
+    /// While set (global light control), this scene is rendered from the shared clock on `deviceIDs` instead of the scene setup.
+    public private(set) var globalOverride: (scene: LightingScene, clock: LightingClock, deviceIDs: Set<String>)?
+
     @ObservationIgnored private let repository: FileLightingSceneRepository?
     @ObservationIgnored private weak var model: AppModel?
     @ObservationIgnored private let defaults: UserDefaults
@@ -62,6 +65,13 @@ public final class LightingScenesController {
         reconcile()
     }
 
+    public func setGlobalOverride(_ value: (scene: LightingScene, clock: LightingClock, deviceIDs: Set<String>)?) {
+        globalOverride = value
+        applied.removeAll()
+        throttles.removeAll()
+        reconcile()
+    }
+
     public func modesChanged(_ modes: Set<String>) {
         guard modes != activeModes else { return }
         activeModes = modes
@@ -71,8 +81,8 @@ public final class LightingScenesController {
     private func reconcile() {
         task?.cancel(); task = nil
         monitor?.stop(); monitor = nil
-        guard enabled else { return }
-        if setup.scenes.contains(where: Self.reactsToKeys) {
+        guard enabled || globalOverride != nil else { return }
+        if globalOverride == nil, setup.scenes.contains(where: Self.reactsToKeys) {
             let monitor = KeyPressMonitor { [weak self] code in
                 Task { @MainActor in self?.recordKey(code: code) }
             }
@@ -104,9 +114,15 @@ public final class LightingScenesController {
     // MARK: Output
 
     private func tick() {
-        guard enabled, let model, let scene = currentScene else { return }
-        let now = Date.timeIntervalSinceReferenceDate
+        var now = Date.timeIntervalSinceReferenceDate
+        let scene: LightingScene
+        if let global = globalOverride {
+            scene = global.scene
+            now = global.clock.time(at: now)   // one phase origin for every device
+        } else if enabled, let current = currentScene { scene = current } else { return }
+        guard let model else { return }
         for device in model.devices {
+            if let global = globalOverride, !global.deviceIDs.contains(device.id) { continue }
             guard let lighting = device.specs.first(where: { if case .lighting = $0.kind { true } else { false } }) else { continue }
             let hasKeys = device.specs.contains { if case .keyLighting = $0.kind { true } else { false } }
             if hasKeys, let layout = KeyboardLayout.layout(forDefinitionID: device.definition?.id) {

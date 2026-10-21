@@ -120,7 +120,7 @@ private struct MacroEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(macro.name.isEmpty ? "New macro" : macro.name).font(.title3.weight(.semibold))
-            TextField("Name", text: $macro.name).textFieldStyle(.roundedBorder)
+            TextField("Name", text: $macro.name).textFieldStyle(.roundedBorder).commitsAndResigns()
             Stepper(value: $macro.repeatCount, in: 1...Macro.maxRepeat) { Text("Repeat: \(macro.repeatCount)") }
 
             ScrollView {
@@ -220,11 +220,11 @@ private struct StepRow: View {
     @ViewBuilder private var editor: some View {
         switch step {
         case .key(let code, let modifiers):
-            HStack { Text("Key"); KeyRecorder(capture: .keyOnly, current: InputTrigger(kind: .keyboard, code: code, modifiers: modifiers)) {
+            HStack { Text("Key"); InputPicker(capture: .keyOnly, current: InputTrigger(kind: .keyboard, code: code, modifiers: modifiers), allowsModifierToggles: true) {
                 step = .key(code: $0.code, modifiers: $0.modifiers)
             } }
         case .text(let text):
-            HStack { Text("Type"); TextField("Text", text: Binding(get: { text }, set: { step = .text(String($0.prefix(500))) })).textFieldStyle(.roundedBorder) }
+            HStack { Text("Type"); TextField("Text", text: Binding(get: { text }, set: { step = .text(String($0.prefix(500))) })).textFieldStyle(.roundedBorder).commitsAndResigns() }
         case .mouseClick(let button):
             HStack { Text("Click"); Picker("", selection: Binding(get: { button }, set: { step = .mouseClick(button: $0) })) {
                 ForEach([0, 1, 2, 3, 4], id: \.self) { Text(verbatim: KeyNames.mouseButton($0)).tag($0) }
@@ -234,12 +234,12 @@ private struct StepRow: View {
                 Text(verbatim: "\(milliseconds) ms").monospacedDigit()
             } }
         case .open(let target):
-            HStack { Text("Open"); TextField("App id, link or path", text: Binding(get: { target }, set: { step = .open($0) })).textFieldStyle(.roundedBorder) }
+            HStack { Text("Open"); TextField("App id, link or path", text: Binding(get: { target }, set: { step = .open($0) })).textFieldStyle(.roundedBorder).commitsAndResigns() }
         case .shortcut(let name):
-            HStack { Text("Shortcut"); TextField("Name", text: Binding(get: { name }, set: { step = .shortcut($0) })).textFieldStyle(.roundedBorder) }
+            HStack { Text("Shortcut"); TextField("Name", text: Binding(get: { name }, set: { step = .shortcut($0) })).textFieldStyle(.roundedBorder).commitsAndResigns() }
         case .shell(let command):
             HStack { Text("Shell"); TextField("Command", text: Binding(get: { command }, set: { step = .shell($0) }))
-                .textFieldStyle(.roundedBorder).font(.system(.body, design: .monospaced)) }
+                .textFieldStyle(.roundedBorder).commitsAndResigns().font(.system(.body, design: .monospaced)) }
         }
     }
 }

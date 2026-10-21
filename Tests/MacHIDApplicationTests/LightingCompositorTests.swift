@@ -119,7 +119,7 @@ private func layer(_ kind: LightingLayerKind, opacity: Double = 1, blend: Lighti
         let out = LightingCompositor.render(s, layout: board, time: 1.5, keyEvents: [KeyEvent(keyID: "a", startTime: 1.4)])
         #expect(out.count == board.keys.count)
     }
-    #expect(LightingScene.defaults.count == 5)
+    #expect(LightingScene.defaults.count == 9)
 }
 
 @Test func sceneSelectionByShiftModes() {

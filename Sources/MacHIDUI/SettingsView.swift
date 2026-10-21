@@ -10,8 +10,10 @@ public struct SettingsView: View {
     @Bindable var remap: RemapController
     @Bindable var plugins: PluginsModel
     @Bindable var updater: UpdaterModel
+    @Bindable var globalLight: GlobalLightController
 
-    public init(model: AppModel, remap: RemapController, plugins: PluginsModel, updater: UpdaterModel) {
+    public init(model: AppModel, remap: RemapController, plugins: PluginsModel, updater: UpdaterModel, globalLight: GlobalLightController) {
+        self.globalLight = globalLight
         self.model = model
         self.remap = remap
         self.plugins = plugins
@@ -19,11 +21,12 @@ public struct SettingsView: View {
     }
 
     enum Page: String, CaseIterable, Identifiable {
-        case general, remap, macros, plugins
+        case general, lights, remap, macros, plugins
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .general: "gearshape"
+            case .lights: "lightbulb.led"
             case .remap: "keyboard"
             case .macros: "play.rectangle"
             case .plugins: "puzzlepiece.extension"
@@ -32,6 +35,7 @@ public struct SettingsView: View {
         var title: Text {
             switch self {
             case .general: Text("General")
+            case .lights: Text("Lights")
             case .remap: Text("Remap")
             case .macros: Text("Macros")
             case .plugins: Text("Plugins")
@@ -76,6 +80,7 @@ public struct SettingsView: View {
             Group {
                 switch page {
                 case .general: GeneralSettings(model: model, updater: updater)
+                case .lights: GlobalLightView(light: globalLight)
                 case .remap: RemapView(remap: remap)
                 case .macros: MacrosView(remap: remap)
                 case .plugins: PluginsView(plugins: plugins)
@@ -87,6 +92,7 @@ public struct SettingsView: View {
             .frame(maxWidth: .infinity)
         }
         .frame(width: 880, height: 640)
+        .resignsFocusOnBackgroundTap()
         .glassPanelWindow()
     }
 }
@@ -101,22 +107,22 @@ private struct GeneralSettings: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
                 general
                 updates
                 defaults
                 rules
             }
-            .padding(24)
+            .padding(18)
         }
     }
 
     private func card<Content: View>(_ title: Text, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            title.font(.headline)
+        VStack(alignment: .leading, spacing: 10) {
+            title.font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase).tracking(0.6)
             content()
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .flatSurface(cornerRadius: Theme.cardRadius)
     }

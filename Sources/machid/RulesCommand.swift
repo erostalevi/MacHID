@@ -39,6 +39,7 @@ func runRules() async throws {
         case .switchProfile(let id): action = "profile \(id)"
         case .nextProfile: action = "next profile"
         case .previousProfile: action = "previous profile"
+        case .system(let id): action = SystemActionCatalog.action(id: id)?.title ?? "system action (unknown)"
         case .toggleShiftMode(let id): action = "toggle mode " + (remap.shiftMode(id: id).map { "'\($0.name)'" } ?? "(missing)")
         }
         let layers = rule.shiftModeIDs.compactMap { remap.shiftMode(id: $0)?.name }

@@ -44,6 +44,11 @@ public final class AppModel {
     /// False until the first device scan finishes, so the window can show a loading state instead of "no devices".
     public private(set) var hasScanned = false
     public var selectedSection: ControlSection = .lighting
+    /// The sidebar tab that holds `selectedSection`.
+    public var selectedTab: DeviceTab {
+        get { DeviceTab.of(selectedSection) }
+        set { if newValue != selectedTab { selectedSection = newValue.primarySection } }
+    }
     /// Keyboards currently in per-key lighting (the stage paints keys instead of selecting them).
     public private(set) var perKeyActive: Set<String> = []
     /// Color the per-key brush paints with.
@@ -206,30 +211,24 @@ public final class AppModel {
         sortDevices()
     }
 
-    /// Sections the selected device has controls for, in display order.
-    public var availableSections: [ControlSection] {
-        guard let device = selectedDevice else { return [] }
-        return device.sections
-    }
+    /// Tabs the selected device shows, in display order.
+    public var availableTabs: [DeviceTab] { selectedDevice?.tabs ?? [] }
 
-    /// Menu title for the n-th section shortcut.
+    /// Menu title for the n-th tab shortcut.
     public func sectionTitle(at index: Int) -> LocalizedStringKey {
-        let sections = availableSections
-        guard sections.indices.contains(index) else { return "Section \(index + 1)" }
-        switch sections[index] {
-        case .lighting: return "Lighting"
-        case .buttons: return "Buttons"
-        case .performance: return "Performance"
-        case .image: return "Image"
-        case .advanced: return "Advanced"
-        case .info: return "Details"
+        let tabs = availableTabs
+        guard tabs.indices.contains(index) else { return "Tab \(index + 1)" }
+        switch tabs[index] {
+        case .light: return "Light"
+        case .keys: return "Keys"
+        case .info: return "Info"
         }
     }
 
-    /// Switches to the n-th available section (0-based); ignored when the device has fewer.
+    /// Switches to the n-th available tab (0-based); ignored when the device has fewer.
     public func selectSection(at index: Int) {
-        let sections = availableSections
-        if sections.indices.contains(index) { selectedSection = sections[index] }
+        let tabs = availableTabs
+        if tabs.indices.contains(index) { selectedTab = tabs[index] }
     }
 
     public var selectedDevice: DeviceEntry? {
@@ -377,7 +376,7 @@ public final class AppModel {
 
     private func keyLightingSpec(_ entry: DeviceEntry) -> ControlSpec? { entry.specs.first { if case .keyLighting = $0.kind { true } else { false } } }
 
-    public func isPainting(_ entry: DeviceEntry) -> Bool { perKeyActive.contains(entry.id) && selectedSection == .lighting }
+    public func isPainting(_ entry: DeviceEntry) -> Bool { perKeyActive.contains(entry.id) && selectedTab == .light }
 
     /// Switches a keyboard between its effects and a hand-painted frame. Turning per-key on starts from the last frame,
     /// or fills every key with the brush color.

@@ -53,6 +53,15 @@ final class LockedEngine: @unchecked Sendable {
         return decision
     }
 
+    var wantsPointerMotion: Bool { lock.lock(); defer { lock.unlock() }; return engine.wantsPointerMotion }
+
+    func decideMotion(dx: Double, dy: Double) -> MotionDecision {
+        lock.lock()
+        let decision = engine.decideMotion(dx: dx, dy: dy)
+        lock.unlock()
+        return decision
+    }
+
     /// Must be called with the lock held.
     private func modesChange() -> Set<String>? {
         let now = engine.activeShiftModeIDs
@@ -60,6 +69,13 @@ final class LockedEngine: @unchecked Sendable {
         lastModes = now
         return now
     }
+}
+
+/// Lets the event tap factory (built before the controller exists) reach the engine's pointer-motion logic. The controller
+/// fills it in when the tap starts, and only when shift gestures exist, so plain remapping never watches pointer movement.
+public final class MotionHook: @unchecked Sendable {
+    public var handler: RemapEventTap.MotionHandler?
+    public init() {}
 }
 
 /// Owns remapping and macros: the saved configuration, the permissions, the event tap and the macro runner.
@@ -96,6 +112,8 @@ public final class RemapController {
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private let permissionPoll: Duration
     @ObservationIgnored private let poster: (any EventPoster)?
+    @ObservationIgnored private let motionHook: MotionHook
+    @ObservationIgnored private var tapWatchesMotion = false
 
     public init(repository: any RemapRepository, runner: MacroRunner,
                 fingerprint: @escaping @Sendable (Macro) -> String,
@@ -103,6 +121,7 @@ public final class RemapController {
                 permissionCheck: @escaping @Sendable () -> (inputMonitoring: Bool, accessibility: Bool) = { (RemapPermissions.inputMonitoring, RemapPermissions.accessibility) },
                 permissionPoll: Duration = .seconds(2),
                 poster: (any EventPoster)? = nil,
+                motionHook: MotionHook = MotionHook(),
                 makeTap: @escaping @MainActor (@escaping @Sendable (InputEvent) -> RemapDecision, @escaping @Sendable (String) -> Void) -> any EventTapping) {
         self.repository = repository
         self.runner = runner
@@ -111,6 +130,7 @@ public final class RemapController {
         self.permissionCheck = permissionCheck
         self.permissionPoll = permissionPoll
         self.poster = poster
+        self.motionHook = motionHook
         self.makeTap = makeTap
         engine.onModesChanged = { [weak self] ids in
             Task { @MainActor in self?.shiftModesChanged(ids) }
@@ -170,6 +190,13 @@ public final class RemapController {
 
     private func startTap() {
         if tap == nil {
+            tapWatchesMotion = engine.wantsPointerMotion
+            let locked = engine
+            if tapWatchesMotion {
+                motionHook.handler = { (dx: Double, dy: Double) -> MotionDecision in locked.decideMotion(dx: dx, dy: dy) }
+            } else {
+                motionHook.handler = nil
+            }
             tap = makeTap({ [engine, weak self] event in
                 // Profile switches are carried out here, on the main actor; the tap just swallows the key.
                 switch engine.decide(event) {
@@ -204,6 +231,8 @@ public final class RemapController {
         change(&copy)
         config = copy
         for event in engine.update(config: copy) { await poster?.post(event) }
+        // The tap watches pointer movement only while shift gestures exist: restart it when that changes.
+        if isActive, engine.wantsPointerMotion != tapWatchesMotion { stopTap(); tap = nil; startTap() }
         do { try await repository.save(copy) } catch { banner = "Could not save remap settings: \(error)" }
     }
 
@@ -240,6 +269,21 @@ public final class RemapController {
 
     /// Removes the mode and every rule that needs it or toggles it.
     public func removeShiftMode(_ id: String) async { await update { $0 = $0.removingShiftMode(id: id) } }
+
+    /// Adds or replaces a shift gesture. Same forbidden triggers as shift modes.
+    @discardableResult
+    public func upsertGesture(_ gesture: ShiftGesture) async -> Bool {
+        guard gesture.hasAllowedTrigger else {
+            banner = "That key or button cannot be a gesture trigger."
+            return false
+        }
+        var clean = gesture
+        clean.name = String(gesture.name.prefix(60))
+        await update { $0 = $0.upsertingGesture(clean) }
+        return true
+    }
+
+    public func removeGesture(_ id: String) async { await update { $0 = $0.removingGesture(id: id) } }
 
     /// Saves a macro. Its approval stays attached, but only counts while the steps are unchanged.
     public func saveMacro(_ macro: Macro) async {
@@ -333,9 +377,10 @@ extension RemapController {
         let log = FileMacroLog()
         let runner = MacroRunner(poster: QuartzEventPoster(), shell: ProcessShellRunner(), launcher: WorkspaceLauncher(),
                                  log: log, fingerprint: MacroFingerprint.of)
+        let hook = MotionHook()
         let controller = RemapController(repository: FileRemapRepository(), runner: runner, fingerprint: MacroFingerprint.of,
-                                         logReader: { await log.entries() }, poster: QuartzEventPoster(),
-                                         makeTap: { handler, runMacro in RemapEventTap(handler: handler, runMacro: runMacro) })
+                                         logReader: { await log.entries() }, poster: QuartzEventPoster(), motionHook: hook,
+                                         makeTap: { handler, runMacro in RemapEventTap(handler: handler, runMacro: runMacro, motion: hook.handler) })
         // Keep the engine's idea of the frontmost app current for app-scoped rules.
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak controller] note in
             let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier

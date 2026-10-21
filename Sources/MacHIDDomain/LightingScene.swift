@@ -154,12 +154,15 @@ public struct LightingScene: Sendable, Equatable, Codable, Identifiable {
     public var layers: [LightingLayer]
     /// 0...100, applied to the final color.
     public var brightness: Int
+    /// When true the scene is rendered on the shared `LightingClock` (one phase origin for every device) instead of its own
+    /// start time, so animated layers on several devices stay in step.
+    public var syncToGlobalClock: Bool
 
-    public init(id: String, name: String, layers: [LightingLayer], brightness: Int = 100) {
-        self.id = id; self.name = name; self.layers = layers; self.brightness = brightness
+    public init(id: String, name: String, layers: [LightingLayer], brightness: Int = 100, syncToGlobalClock: Bool = false) {
+        self.id = id; self.name = name; self.layers = layers; self.brightness = brightness; self.syncToGlobalClock = syncToGlobalClock
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, layers, brightness }
+    private enum CodingKeys: String, CodingKey { case id, name, layers, brightness, syncToGlobalClock }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -167,6 +170,7 @@ public struct LightingScene: Sendable, Equatable, Codable, Identifiable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? id
         layers = (try c.decodeIfPresent([Lossy<LightingLayer>].self, forKey: .layers) ?? []).compactMap(\.value)
         brightness = try c.decodeIfPresent(Int.self, forKey: .brightness) ?? 100
+        syncToGlobalClock = try c.decodeIfPresent(Bool.self, forKey: .syncToGlobalClock) ?? false
     }
 }
 
@@ -223,7 +227,23 @@ public struct LightingSetup: Sendable, Equatable, Codable {
 extension LightingScene {
     private static func c(_ r: UInt8, _ g: UInt8, _ b: UInt8) -> RGBColor { RGBColor(r: r, g: g, b: b) }
 
-    public static let defaults: [LightingScene] = [
+    /// Simple, one-idea scenes first (easy to pick and to edit), then the richer layered ones.
+    public static let defaults: [LightingScene] = simple + layered
+
+    public static let simple: [LightingScene] = [
+        LightingScene(id: "solid", name: "Solid", layers: [
+            LightingLayer(id: "base", name: "Color", kind: .solid(c(255, 255, 255)))]),
+        LightingScene(id: "breathing", name: "Breathing", layers: [
+            LightingLayer(id: "breathe", name: "Breathing", kind: .breathing(color: c(0, 140, 255), speed: 1))]),
+        LightingScene(id: "reactive", name: "Reactive", layers: [
+            LightingLayer(id: "base", name: "Dim base", kind: .solid(c(10, 10, 20))),
+            LightingLayer(id: "react", name: "Keypress", kind: .reactive(color: c(255, 80, 0), decay: 0.8, ripple: false))]),
+        LightingScene(id: "gaming", name: "Gaming", layers: [
+            LightingLayer(id: "base", name: "Dim base", kind: .solid(c(40, 0, 0))),
+            LightingLayer(id: "wasd", name: "WASD", kind: .solid(c(255, 40, 0)), region: .keys(["w", "a", "s", "d"]))]),
+    ]
+
+    public static let layered: [LightingScene] = [
         LightingScene(id: "aurora", name: "Aurora", layers: [
             LightingLayer(id: "wave", name: "Wave", kind: .wave(speed: 0.35, direction: 0), opacity: 0.85),
             LightingLayer(id: "react", name: "Keypress", kind: .reactive(color: c(255, 255, 255), decay: 0.9, ripple: true), blend: .add)]),

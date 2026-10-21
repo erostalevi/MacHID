@@ -36,6 +36,60 @@ public enum RemapAction: Codable, Equatable, Sendable {
     case previousProfile
     /// Flips a shift mode on or off, whatever its own trigger or behavior.
     case toggleShiftMode(String)
+    /// A macOS navigation or system action, by `SystemActionCatalog` id (Mission Control, switch desktop, media keys...).
+    case system(String)
+}
+
+public enum GestureDirection: String, Codable, Sendable, CaseIterable { case left, right, up, down }
+
+/// Hold a key or mouse button and move the pointer: moving `threshold` pixels in a direction fires that direction's action.
+/// The trigger is consumed while the gesture exists, like a shift mode's trigger.
+public struct ShiftGesture: Codable, Equatable, Sendable, Identifiable {
+    public static let defaultThreshold = 80
+    public static let thresholdRange = 10...1000
+
+    public let id: String
+    public var name: String
+    public var trigger: InputTrigger
+    /// Pixels of pointer travel (on the dominant axis) needed to fire.
+    public var threshold: Int
+    /// Direction -> action. Directions without an action do nothing.
+    public var actions: [GestureDirection: RemapAction]
+    /// Freeze the pointer while the trigger is held. Off by default: the pointer keeps moving so the user sees what they do.
+    public var freezePointer: Bool
+
+    public init(id: String, name: String, trigger: InputTrigger, threshold: Int = ShiftGesture.defaultThreshold,
+                actions: [GestureDirection: RemapAction] = [:], freezePointer: Bool = false) {
+        self.id = id
+        self.name = name
+        self.trigger = trigger
+        self.threshold = min(max(threshold, Self.thresholdRange.lowerBound), Self.thresholdRange.upperBound)
+        self.actions = actions
+        self.freezePointer = freezePointer
+    }
+
+    /// Same forbidden triggers as shift modes (left/right click, Escape).
+    public var hasAllowedTrigger: Bool { ShiftMode.isAllowedTrigger(trigger) }
+
+    private enum CodingKeys: String, CodingKey { case id, name, trigger, threshold, actions, freezePointer }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let raw = try c.decodeIfPresent([String: RemapAction].self, forKey: .actions) ?? [:]
+        var actions: [GestureDirection: RemapAction] = [:]
+        for (key, value) in raw { if let direction = GestureDirection(rawValue: key) { actions[direction] = value } }
+        self.init(id: try c.decode(String.self, forKey: .id), name: try c.decodeIfPresent(String.self, forKey: .name) ?? "",
+                  trigger: try c.decode(InputTrigger.self, forKey: .trigger),
+                  threshold: try c.decodeIfPresent(Int.self, forKey: .threshold) ?? Self.defaultThreshold,
+                  actions: actions, freezePointer: try c.decodeIfPresent(Bool.self, forKey: .freezePointer) ?? false)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id); try c.encode(name, forKey: .name); try c.encode(trigger, forKey: .trigger)
+        try c.encode(threshold, forKey: .threshold); try c.encode(freezePointer, forKey: .freezePointer)
+        try c.encode(Dictionary(uniqueKeysWithValues: actions.map { ($0.key.rawValue, $0.value) }), forKey: .actions)
+    }
 }
 
 public enum ShiftBehavior: String, Codable, Sendable, CaseIterable { case hold, toggle }
@@ -197,6 +251,7 @@ public struct RemapConfig: Codable, Equatable, Sendable {
     public var rules: [RemapRule] = []
     public var macros: [Macro] = []
     public var shiftModes: [ShiftMode] = []
+    public var gestures: [ShiftGesture] = []
 
     public init() {}
 
@@ -209,6 +264,19 @@ public struct RemapConfig: Codable, Equatable, Sendable {
         rules = try c.decodeIfPresent([RemapRule].self, forKey: .rules) ?? []
         macros = try c.decodeIfPresent([Macro].self, forKey: .macros) ?? []
         shiftModes = try c.decodeIfPresent([ShiftMode].self, forKey: .shiftModes) ?? []
+        gestures = try c.decodeIfPresent([ShiftGesture].self, forKey: .gestures) ?? []
+    }
+
+    public func upsertingGesture(_ gesture: ShiftGesture) -> RemapConfig {
+        var copy = self
+        if let index = copy.gestures.firstIndex(where: { $0.id == gesture.id }) { copy.gestures[index] = gesture } else { copy.gestures.append(gesture) }
+        return copy
+    }
+
+    public func removingGesture(id: String) -> RemapConfig {
+        var copy = self
+        copy.gestures.removeAll { $0.id == id }
+        return copy
     }
 
     public func shiftMode(id: String) -> ShiftMode? { shiftModes.first { $0.id == id } }

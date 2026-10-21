@@ -42,11 +42,11 @@ struct DeviceStage: View {
 
     private var layout: KeyboardLayout? { KeyboardLayout.layout(forDefinitionID: device.definition?.id) }
     private var painting: Bool { model.isPainting(device) }
-    private var paintingScene: Bool { scenes?.paintingLayerID != nil && model.selectedSection == .lighting }
+    private var paintingScene: Bool { scenes?.paintingLayerID != nil && model.selectedTab == .light }
     /// The scene to draw: the running one, or the one being edited while the editor is open on this device.
     private var sceneOnBoard: LightingScene? {
         guard let scenes, scenes.enabled else { return nil }
-        return model.selectedSection == .lighting ? scenes.editingScene ?? scenes.currentScene : scenes.currentScene
+        return model.selectedTab == .light ? scenes.editingScene ?? scenes.currentScene : scenes.currentScene
     }
 
     private var keyboardEffect: SimEffect {

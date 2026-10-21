@@ -111,6 +111,14 @@ private struct SceneEditor: View {
     @Bindable var scenes: LightingScenesController
     let scene: LightingScene
     var accent: Color
+    /// Only one layer is open at a time (the others fold to one line); nil means the top layer.
+    @State private var expandedID: String?
+
+    private var expandedLayerID: String? {
+        if let painting = scenes.paintingLayerID, scene.layers.contains(where: { $0.id == painting }) { return painting }
+        if let expandedID, scene.layers.contains(where: { $0.id == expandedID }) { return expandedID }
+        return scene.layers.last?.id
+    }
 
     private func save(_ change: (inout LightingScene) -> Void) {
         var copy = scene
@@ -122,21 +130,27 @@ private struct SceneEditor: View {
         VStack(alignment: .leading, spacing: Theme.gap) {
             Card(title: Text("Scene")) {
                 TextField("Name", text: Binding(get: { scene.name }, set: { value in save { $0.name = value } }))
-                    .textFieldStyle(.plain).font(.title3.weight(.semibold))
+                    .textFieldStyle(.plain).font(.title3.weight(.semibold)).commitsAndResigns()
                 SettingRow(title: Text("Brightness"), value: Text(verbatim: "\(scene.brightness)%")) {
                     Slider(value: Binding(get: { Double(scene.brightness) }, set: { value in save { $0.brightness = Int(value.rounded()) } }), in: 1...100)
                 }
             }
-            ForEach(Array(scene.layers.enumerated()), id: \.element.id) { index, layer in
+            // Shown top layer first (what you see on top of the keyboard is on top of the list); the stored
+            // order, which the renderer composites bottom to top, is unchanged.
+            ForEach(Array(scene.layers.enumerated()).reversed(), id: \.element.id) { index, layer in
                 LayerCard(scenes: scenes, layer: layer, index: index, count: scene.layers.count, accent: accent,
+                          expanded: expandedLayerID == layer.id,
+                          expand: { withAnimation(.snappy(duration: 0.25)) { expandedID = layer.id } },
                           update: { change in save { change(&$0.layers[index]) } },
                           move: { offset in save { if $0.layers.indices.contains(index + offset) { $0.layers.swapAt(index, index + offset) } } },
-                          remove: { save { $0.layers.remove(at: index) } })
+                          remove: { save { $0.layers.remove(at: index) }; if expandedID == layer.id { expandedID = nil } })
             }
             Menu {
                 ForEach(Self.kinds, id: \.name) { entry in
                     Button(LocalizedStringKey(entry.name)) {
-                        save { $0.layers.append(LightingLayer(id: UUID().uuidString, name: String(localized: String.LocalizationValue(entry.name)), kind: entry.make())) }
+                        let layer = LightingLayer(id: UUID().uuidString, name: String(localized: String.LocalizationValue(entry.name)), kind: entry.make())
+                        save { $0.layers.append(layer) }
+                        expandedID = layer.id   // a new layer opens, so it can be edited at once
                     }
                 }
             } label: { Label("Add layer", systemImage: "plus") }
@@ -156,120 +170,4 @@ private struct SceneEditor: View {
         ("Gradient", { .gradient(from: RGBColor(r: 255, g: 45, b: 170), to: RGBColor(r: 0, g: 229, b: 255), angle: 0) }),
         ("Painted keys", { .painted([]) }),
     ]
-}
-
-private struct LayerCard: View {
-    @Bindable var scenes: LightingScenesController
-    let layer: LightingLayer
-    let index: Int, count: Int
-    var accent: Color
-    let update: ((inout LightingLayer) -> Void) -> Void
-    let move: (Int) -> Void
-    let remove: () -> Void
-
-    private var title: Text {
-        switch layer.kind {
-        case .solid: Text("Solid color")
-        case .spectrum: Text("Spectrum")
-        case .wave: Text("Wave")
-        case .breathing: Text("Breathing")
-        case .starlight: Text("Starlight")
-        case .reactive: Text("Reactive")
-        case .rainbowRipple: Text("Rainbow ripple")
-        case .gradient: Text("Gradient")
-        case .painted: Text("Painted keys")
-        }
-    }
-
-    var body: some View {
-        Card {
-            HStack(spacing: 8) {
-                Toggle("", isOn: Binding(get: { layer.enabled }, set: { value in update { $0.enabled = value } }))
-                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                title.font(.callout.weight(.semibold))
-                Spacer()
-                Button { move(-1) } label: { Image(systemName: "chevron.down") }.buttonStyle(.plain).disabled(index == 0).help("Move down")
-                Button { move(1) } label: { Image(systemName: "chevron.up") }.buttonStyle(.plain).disabled(index == count - 1).help("Move up")
-                Button(action: remove) { Image(systemName: "trash") }.buttonStyle(.plain).help("Remove layer")
-            }
-            .foregroundStyle(.secondary)
-            parameters
-            SettingRow(title: Text("Opacity"), value: Text(verbatim: "\(Int((layer.opacity * 100).rounded()))%")) {
-                Slider(value: Binding(get: { layer.opacity }, set: { value in update { $0.opacity = value } }), in: 0...1)
-            }
-            HStack {
-                Text("Blend").font(.callout)
-                Spacer()
-                Picker("", selection: Binding(get: { layer.blend }, set: { value in update { $0.blend = value } })) {
-                    ForEach(LightingBlend.allCases, id: \.self) { Text(verbatim: Titles.humanize($0.rawValue)).tag($0) }
-                }
-                .labelsHidden().fixedSize()
-            }
-        }
-        .opacity(layer.enabled ? 1 : 0.55)
-    }
-
-    @ViewBuilder private var parameters: some View {
-        switch layer.kind {
-        case .solid(let color):
-            ColorField(selected: color) { picked in update { $0.kind = .solid(picked) } }
-        case .spectrum(let speed):
-            speedRow(speed) { value in update { $0.kind = .spectrum(speed: value) } }
-        case .wave(let speed, let direction):
-            speedRow(speed) { value in update { $0.kind = .wave(speed: value, direction: direction) } }
-            Segmented(options: [0, 1], selection: Binding(get: { direction }, set: { value in update { $0.kind = .wave(speed: speed, direction: value) } }), tint: accent) {
-                $0 == 0 ? Text("Left to right") : Text("Right to left")
-            }
-        case .breathing(let color, let speed):
-            ColorField(selected: color) { picked in update { $0.kind = .breathing(color: picked, speed: speed) } }
-            speedRow(speed) { value in update { $0.kind = .breathing(color: color, speed: value) } }
-        case .starlight(let colors, let speed, let density):
-            ColorField(selected: colors.first ?? RGBColor(r: 255, g: 255, b: 255)) { picked in
-                update { var list = colors; if list.isEmpty { list = [picked] } else { list[0] = picked }; $0.kind = .starlight(colors: list, speed: speed, density: density) }
-            }
-            Toggle(isOn: Binding(get: { colors.count > 1 }, set: { on in
-                update { $0.kind = .starlight(colors: on ? [colors.first ?? RGBColor(r: 255, g: 255, b: 255), RGBColor(r: 0, g: 229, b: 255)] : Array(colors.prefix(1)), speed: speed, density: density) }
-            })) { Text("Second color").font(.callout) }.toggleStyle(.switch)
-            if colors.count > 1 {
-                ColorField(selected: colors[1]) { picked in update { var list = colors; list[1] = picked; $0.kind = .starlight(colors: list, speed: speed, density: density) } }
-            }
-            speedRow(speed) { value in update { $0.kind = .starlight(colors: colors, speed: value, density: density) } }
-            SettingRow(title: Text("Density"), value: Text(verbatim: "\(Int((density * 100).rounded()))%")) {
-                Slider(value: Binding(get: { density }, set: { value in update { $0.kind = .starlight(colors: colors, speed: speed, density: value) } }), in: 0.05...1)
-            }
-        case .reactive(let color, let decay, let ripple):
-            ColorField(selected: color) { picked in update { $0.kind = .reactive(color: picked, decay: decay, ripple: ripple) } }
-            SettingRow(title: Text("Fade"), value: Text(verbatim: String(format: "%.1f s", decay))) {
-                Slider(value: Binding(get: { decay }, set: { value in update { $0.kind = .reactive(color: color, decay: value, ripple: ripple) } }), in: 0.1...3)
-            }
-            Toggle(isOn: Binding(get: { ripple }, set: { value in update { $0.kind = .reactive(color: color, decay: decay, ripple: value) } })) { Text("Ripple outwards").font(.callout) }.toggleStyle(.switch)
-        case .rainbowRipple(let speed, let decay):
-            speedRow(speed) { value in update { $0.kind = .rainbowRipple(speed: value, decay: decay) } }
-            SettingRow(title: Text("Fade"), value: Text(verbatim: String(format: "%.1f s", decay))) {
-                Slider(value: Binding(get: { decay }, set: { value in update { $0.kind = .rainbowRipple(speed: speed, decay: value) } }), in: 0.2...3)
-            }
-        case .gradient(let from, let to, let angle):
-            ColorField(selected: from, title: Text("From")) { picked in update { $0.kind = .gradient(from: picked, to: to, angle: angle) } }
-            ColorField(selected: to, title: Text("To")) { picked in update { $0.kind = .gradient(from: from, to: picked, angle: angle) } }
-            SettingRow(title: Text("Angle"), value: Text(verbatim: "\(Int(angle))°")) {
-                Slider(value: Binding(get: { angle }, set: { value in update { $0.kind = .gradient(from: from, to: to, angle: value.rounded()) } }), in: 0...360)
-            }
-        case .painted(let cells):
-            let painting = scenes.paintingLayerID == layer.id
-            Text("\(cells.count) keys painted").font(.caption).foregroundStyle(.secondary)
-            HStack {
-                Button { scenes.paintingLayerID = painting ? nil : layer.id } label: {
-                    Label(painting ? "Done painting" : "Paint keys", systemImage: painting ? "checkmark" : "paintbrush")
-                }
-                .buttonStyle(PillButtonStyle(tint: accent, selected: painting))
-                Button("Clear") { update { $0.kind = .painted([]) } }.buttonStyle(PillButtonStyle())
-            }
-        }
-    }
-
-    private func speedRow(_ speed: Double, set: @escaping (Double) -> Void) -> some View {
-        SettingRow(title: Text("Speed"), value: Text(verbatim: String(format: "%.1f×", speed))) {
-            Slider(value: Binding(get: { speed }, set: set), in: 0.1...4)
-        }
-    }
 }

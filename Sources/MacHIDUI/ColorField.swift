@@ -59,7 +59,7 @@ struct ColorField: View {
                     .frame(width: 74)
                     .padding(.horizontal, 8).padding(.vertical, 5)
                     .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .onSubmit(commit)
+                    .commitsAndResigns(commit)
                     .onChange(of: text) { _, new in
                         // Apply as soon as it is a complete valid value, so typing a color is live.
                         if editing, new.filter(\.isHexDigit).count == 6, let color = MacHIDDomain.RGBColor(hex: new) { pick(color) }

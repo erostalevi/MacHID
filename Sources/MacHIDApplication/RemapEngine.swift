@@ -32,6 +32,17 @@ public enum RemapDecision: Equatable, Sendable {
     case switchProfile(String)
     /// Swallow the event and move to the next (+1) or previous (-1) profile.
     case cycleProfile(Int)
+    /// Swallow the event and run this `SystemActionCatalog` action.
+    case runSystem(String)
+}
+
+/// What to do with pointer movement while a shift gesture is held.
+public struct MotionDecision: Equatable, Sendable {
+    /// Set when the movement completed a gesture; nil otherwise.
+    public var fired: RemapDecision?
+    /// Swallow the movement event (pointer frozen).
+    public var suppress: Bool
+    public static let none = MotionDecision(fired: nil, suppress: false)
 }
 
 /// Decides what to do with each key or button event. Pure logic: no event taps, no permissions, no timing, so every
@@ -48,6 +59,10 @@ public struct RemapEngine: Sendable {
     /// Triggers currently down that belong to a shift mode (their release is consumed too).
     private var modeTriggersDown: [Pressed: String] = [:]
     private var toggled: Set<String> = []
+    private struct GestureState { var dx = 0.0, dy = 0.0; var armed = true; var lastFired: GestureDirection? }
+    /// Gesture triggers currently down -> gesture id; and the travel of each held gesture.
+    private var gestureTriggersDown: [Pressed: String] = [:]
+    private var gestureStates: [String: GestureState] = [:]
 
     public init(config: RemapConfig = RemapConfig()) { self.config = config }
 
@@ -74,7 +89,13 @@ public struct RemapEngine: Sendable {
             return mode.trigger.kind == pressed.kind && mode.trigger.code == pressed.code
         }
         toggled = toggled.filter { valid[$0] != nil }
-        if !config.enabled { modeTriggersDown.removeAll(); toggled.removeAll() }
+        let gestures = Dictionary(uniqueKeysWithValues: config.gestures.filter(\.hasAllowedTrigger).map { ($0.id, $0) })
+        gestureTriggersDown = gestureTriggersDown.filter { pressed, id in
+            guard let gesture = gestures[id] else { return false }
+            return gesture.trigger.kind == pressed.kind && gesture.trigger.code == pressed.code
+        }
+        gestureStates = gestureStates.filter { gestureTriggersDown.values.contains($0.key) }
+        if !config.enabled { modeTriggersDown.removeAll(); toggled.removeAll(); gestureTriggersDown.removeAll(); gestureStates.removeAll() }
         return releases
     }
 
@@ -88,6 +109,8 @@ public struct RemapEngine: Sendable {
         active.removeAll()
         modeTriggersDown.removeAll()
         toggled.removeAll()
+        gestureTriggersDown.removeAll()
+        gestureStates.removeAll()
         return releases
     }
 
@@ -95,6 +118,7 @@ public struct RemapEngine: Sendable {
         let pressed = Pressed(kind: event.kind, code: event.code)
         if !event.isDown {
             if modeTriggersDown.removeValue(forKey: pressed) != nil { return .suppress }
+            if let id = gestureTriggersDown.removeValue(forKey: pressed) { gestureStates[id] = nil; return .suppress }
             guard let action = active.removeValue(forKey: pressed) else { return .passthrough }
             return Self.release(action)
         }
@@ -108,19 +132,90 @@ public struct RemapEngine: Sendable {
             return .suppress
         }
 
+        if let gesture = gesture(for: event) {
+            if !event.isRepeat { gestureTriggersDown[pressed] = gesture.id; gestureStates[gesture.id] = GestureState() }
+            return .suppress
+        }
+
         guard let rule = matchingRule(for: event, frontmostBundleID: frontmostBundleID) else { return .passthrough }
         active[pressed] = rule.action
-        switch rule.action {
+        return decision(for: rule.action, isRepeat: event.isRepeat)
+    }
+
+    private mutating func decision(for action: RemapAction, isRepeat: Bool) -> RemapDecision {
+        switch action {
         case .key(let code, let modifiers): return .emit([.key(code: code, modifiers: modifiers, down: true)])
         case .mouseButton(let button): return .emit([.mouse(button: button, down: true)])
-        case .macro(let id): return event.isRepeat ? .suppress : .runMacro(id)   // holding a key must not restart the macro
+        case .macro(let id): return isRepeat ? .suppress : .runMacro(id)   // holding a key must not restart the macro
         case .disable: return .suppress
-        case .switchProfile(let id): return event.isRepeat ? .suppress : .switchProfile(id)
-        case .nextProfile: return event.isRepeat ? .suppress : .cycleProfile(1)
-        case .previousProfile: return event.isRepeat ? .suppress : .cycleProfile(-1)
+        case .switchProfile(let id): return isRepeat ? .suppress : .switchProfile(id)
+        case .nextProfile: return isRepeat ? .suppress : .cycleProfile(1)
+        case .previousProfile: return isRepeat ? .suppress : .cycleProfile(-1)
+        case .system(let id): return isRepeat ? .suppress : .runSystem(id)
         case .toggleShiftMode(let id):
-            if !event.isRepeat { flip(id) }
+            if !isRepeat { flip(id) }
             return .suppress
+        }
+    }
+
+    // MARK: Shift gestures
+
+    /// True when any gesture trigger is held (the tap can skip pointer events otherwise).
+    public var isTrackingGestures: Bool { !gestureTriggersDown.isEmpty }
+    /// True when the config has gestures and remapping is on (the tap only watches pointer movement then).
+    public var wantsPointerMotion: Bool { config.enabled && config.gestures.contains { $0.hasAllowedTrigger } }
+
+    /// Feeds a pointer movement (pixels since the last event). While a gesture trigger is held, travel accumulates; at
+    /// `threshold` pixels on the dominant axis the direction's action fires once. The gesture re-arms when the pointer
+    /// travels back half a threshold the other way, or when the trigger is released. Releasing resets the travel.
+    public mutating func decideMotion(dx: Double, dy: Double) -> MotionDecision {
+        guard config.enabled, !gestureTriggersDown.isEmpty else { return .none }
+        var result = MotionDecision.none
+        for id in Set(gestureTriggersDown.values).sorted() {
+            guard let gesture = config.gestures.first(where: { $0.id == id }) else { continue }
+            if gesture.freezePointer { result.suppress = true }
+            var state = gestureStates[id] ?? GestureState()
+            state.dx += dx; state.dy += dy
+            let threshold = Double(gesture.threshold)
+            if !state.armed, let last = state.lastFired {
+                // Moving back along the fired axis re-arms (a swipe right then left is two gestures).
+                let along = (last == .left || last == .right) ? state.dx : state.dy
+                let sign: Double = (last == .right || last == .down) ? 1 : -1
+                if along * sign > 0 {
+                    // Still going the same way: the point of reference follows the farthest position.
+                    if last == .left || last == .right { state.dx = 0 } else { state.dy = 0 }
+                } else if along * sign <= -threshold / 2 { state = GestureState() }
+                gestureStates[id] = state
+                continue
+            }
+            let horizontal = abs(state.dx) >= abs(state.dy)
+            let major = horizontal ? state.dx : state.dy
+            guard abs(major) >= threshold else { gestureStates[id] = state; continue }
+            let direction: GestureDirection = horizontal ? (major > 0 ? .right : .left) : (major > 0 ? .down : .up)
+            state.armed = false; state.lastFired = direction
+            // After firing, measure travel from here so "moving back" is relative to the point of firing.
+            state.dx = 0; state.dy = 0
+            gestureStates[id] = state
+            if result.fired == nil, let action = gesture.actions[direction] {
+                result.fired = fireDecision(for: action)
+            }
+        }
+        return result
+    }
+
+    /// A gesture is a tap, not a hold: key and mouse actions are sent as press + release.
+    private mutating func fireDecision(for action: RemapAction) -> RemapDecision {
+        switch action {
+        case .key(let code, let modifiers):
+            return .emit([.key(code: code, modifiers: modifiers, down: true), .key(code: code, modifiers: modifiers, down: false)])
+        case .mouseButton(let button): return .emit([.mouse(button: button, down: true), .mouse(button: button, down: false)])
+        default: return decision(for: action, isRepeat: false)
+        }
+    }
+
+    private func gesture(for event: InputEvent) -> ShiftGesture? {
+        config.gestures.first {
+            $0.hasAllowedTrigger && $0.trigger.kind == event.kind && $0.trigger.code == event.code && $0.trigger.modifiers == event.modifiers
         }
     }
 
@@ -133,7 +228,7 @@ public struct RemapEngine: Sendable {
         switch action {
         case .key(let code, let modifiers): .emit([.key(code: code, modifiers: modifiers, down: false)])
         case .mouseButton(let button): .emit([.mouse(button: button, down: false)])
-        case .macro, .disable, .switchProfile, .nextProfile, .previousProfile, .toggleShiftMode: .suppress
+        case .macro, .disable, .switchProfile, .nextProfile, .previousProfile, .toggleShiftMode, .system: .suppress
         }
     }
 

@@ -106,7 +106,7 @@ public struct PluginsView: View {
 
     private var browse: some View {
         SettingsCard(Text("Browse")) {
-            TextField("Search by name, license or device ID", text: $query).textFieldStyle(.roundedBorder)
+            TextField("Search by name, license or device ID", text: $query).textFieldStyle(.roundedBorder).commitsAndResigns()
             let entries = filtered
             if entries.isEmpty { Text(plugins.registry == nil ? "Nothing to show yet." : "No plugins match.").font(.callout).foregroundStyle(.tertiary) }
             ForEach(entries, id: \.id) { entry in EntryRow(plugins: plugins, entry: entry) }

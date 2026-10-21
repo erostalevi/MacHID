@@ -26,12 +26,15 @@ struct MacHIDApp: App {
     @State private var plugins: PluginsModel
     @State private var updater = UpdaterModel()
     @State private var scenes: LightingScenesController
+    @State private var globalLight: GlobalLightController
 
     init() {
         let model = AppModel.live()
         _model = State(initialValue: model)
         _plugins = State(initialValue: PluginsModel.live(app: model))
-        _scenes = State(initialValue: LightingScenesController(model: model))
+        let scenes = LightingScenesController(model: model)
+        _scenes = State(initialValue: scenes)
+        _globalLight = State(initialValue: GlobalLightController(model: model, scenes: scenes))
     }
     @Environment(\.openWindow) private var openWindow
 
@@ -72,18 +75,18 @@ struct MacHIDApp: App {
         .windowResizability(.contentSize)
 
         Window("Settings", id: "settings") {
-            SettingsView(model: model, remap: remap, plugins: plugins, updater: updater)
+            SettingsView(model: model, remap: remap, plugins: plugins, updater: updater, globalLight: globalLight)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .commands {
-            CommandMenu("Section") {
-                ForEach(0..<6, id: \.self) { index in
+            CommandMenu("Tab") {
+                ForEach(0..<3, id: \.self) { index in
                     Button(model.sectionTitle(at: index)) {
                         withAnimation(.snappy) { model.selectSection(at: index) }
                     }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                    .disabled(index >= model.availableSections.count)
+                    .disabled(index >= model.availableTabs.count)
                 }
             }
             CommandMenu("Device") {
