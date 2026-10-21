@@ -1,7 +1,9 @@
 name: Release
 
-# Every push to master that touches code is built and tested. When the signing secrets exist in the
-# `release` environment, it is also signed, notarized and published as a GitHub release (CLI zip + app DMG).
+# Every push to master that touches code is built, tested and published as a GitHub release (app DMG + CLI zip).
+# The app is NOT notarized (no Apple Developer account): it is ad hoc signed, so the first launch needs
+# right-click > Open (or System Settings > Privacy & Security > Open Anyway). Updates afterwards go through Sparkle,
+# verified with an EdDSA key, and are not quarantined, so Gatekeeper does not ask again.
 # Docs-only and registry-only changes are excluded (the registry has its own workflow, registry.yml).
 on:
   push:
@@ -23,12 +25,10 @@ concurrency:
 jobs:
   release:
     runs-on: macos-15
-    environment: release   # holds the signing and notarization secrets
     permissions:
       contents: write
     env:
       HAVE_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
-      HAVE_SIGNING_SECRETS: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 != '' && secrets.DEVELOPER_ID_CERT_PASSWORD != '' && secrets.DEVELOPER_ID_IDENTITY != '' && secrets.NOTARY_API_KEY_P8_BASE64 != '' && secrets.NOTARY_API_KEY_ID != '' && secrets.NOTARY_API_ISSUER_ID != '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -58,83 +58,30 @@ jobs:
       - name: Test
         run: swift test
 
-      - name: Build release binaries
-        run: swift build -c release --arch arm64
-
-      - name: Signing secrets are not configured
-        if: env.HAVE_SIGNING_SECRETS != 'true'
-        run: echo "::notice::Built and tested only. Add the signing secrets to the 'release' environment to publish a release (see docs/RELEASE.md)."
-
-      - name: Build the app bundle (ad hoc, no secrets in this step)
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
+      - name: Build the app bundle (ad hoc signed)
+        if: steps.guard.outputs.exists != 'true'
         env:
           REGISTRY_PUBLIC_KEY: ${{ vars.REGISTRY_PUBLIC_KEY }}
-          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
         run: |
           export APP_VERSION="${{ steps.version.outputs.version }}" BUILD_NUMBER="$(git rev-list --count HEAD)"
           OUT="$RUNNER_TEMP/app" BUILD_DIR="$RUNNER_TEMP/app-build" scripts/make-app.sh
 
-      - name: Import signing certificate
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
-        env:
-          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+      - name: Package the DMG and the CLI
+        if: steps.guard.outputs.exists != 'true'
         run: |
-          keychain="$RUNNER_TEMP/build.keychain-db"
-          keychain_password="$(uuidgen)"
-          security create-keychain -p "$keychain_password" "$keychain"
-          security set-keychain-settings -lut 21600 "$keychain"
-          security unlock-keychain -p "$keychain_password" "$keychain"
-          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -t cert -f pkcs12 -k "$keychain"
-          rm -f "$RUNNER_TEMP/cert.p12"
-          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain"
-          security list-keychains -d user -s "$keychain" login.keychain-db
-
-      - name: Sign and notarize the CLI
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
-        env:
-          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
-          NOTARY_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_P8_BASE64 }}
-          NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
-          NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
-        run: |
-          mkdir -p dist
-          cp .build/arm64-apple-macosx/release/machid dist/machid
-          codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" dist/machid
-          codesign --verify --strict --verbose=2 dist/machid
-          (cd dist && ditto -c -k --keepParent machid "machid-${{ steps.version.outputs.version }}-macos-arm64.zip")
-          echo "$NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
-          xcrun notarytool submit "dist/machid-${{ steps.version.outputs.version }}-macos-arm64.zip" \
-            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
-          rm -f "$RUNNER_TEMP/notary.p8"
-          rm dist/machid
-
-      - name: Sign and notarize the app (DMG)
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
-        env:
-          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
-          NOTARY_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_P8_BASE64 }}
-          NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
-          NOTARY_ISSUER: ${{ secrets.NOTARY_API_ISSUER_ID }}
-        run: |
-          # Only signing tools run here: the build already happened in a step without these secrets.
           version="${{ steps.version.outputs.version }}"
-          scripts/sign-app.sh "$RUNNER_TEMP/app/MacHID.app" "$SIGN_IDENTITY"
           mkdir -p "$RUNNER_TEMP/dmg" dist
           cp -R "$RUNNER_TEMP/app/MacHID.app" "$RUNNER_TEMP/dmg/"
           ln -s /Applications "$RUNNER_TEMP/dmg/Applications"
           hdiutil create -volname "MacHID" -srcfolder "$RUNNER_TEMP/dmg" -ov -format UDZO "dist/MacHID-${version}.dmg"
-          codesign --force --timestamp --sign "$SIGN_IDENTITY" "dist/MacHID-${version}.dmg"
-          echo "$NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
-          xcrun notarytool submit "dist/MacHID-${version}.dmg" \
-            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait
-          rm -f "$RUNNER_TEMP/notary.p8"
-          xcrun stapler staple "dist/MacHID-${version}.dmg"
+          swift build -c release --arch arm64 --product machid
+          cp .build/arm64-apple-macosx/release/machid dist/machid
+          codesign --force --sign - dist/machid
+          (cd dist && ditto -c -k --keepParent machid "machid-${version}-macos-arm64.zip" && rm machid)
           (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS)
 
       - name: Generate the update feed (appcast.xml)
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true' && env.HAVE_SPARKLE == 'true'
+        if: steps.guard.outputs.exists != 'true' && env.HAVE_SPARKLE == 'true'
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: |
@@ -150,18 +97,17 @@ jobs:
           rm -f "$key"
           cp "$RUNNER_TEMP/appcast/appcast.xml" dist/appcast.xml
 
-      # The Homebrew cask update is added once a tap repository exists.
+      - name: Updates are not signed
+        if: steps.guard.outputs.exists != 'true' && env.HAVE_SPARKLE != 'true'
+        run: echo "::warning::SPARKLE_ED_PRIVATE_KEY is not set: this release has no appcast.xml, so installed apps will not see it. See docs/RELEASE.md."
 
       - name: Create GitHub release
-        if: env.HAVE_SIGNING_SECRETS == 'true' && steps.guard.outputs.exists != 'true'
+        if: steps.guard.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v${{ steps.version.outputs.version }}" dist/* \
             --target "${{ github.sha }}" \
             --title "MacHID ${{ steps.version.outputs.version }}" \
+            --notes "Unsigned build (no Apple notarization). First launch: right-click MacHID.app > Open, or System Settings > Privacy & Security > Open Anyway. Later updates install themselves." \
             --generate-notes
-
-      - name: Remove signing keychain
-        if: always() && env.HAVE_SIGNING_SECRETS == 'true'
-        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true

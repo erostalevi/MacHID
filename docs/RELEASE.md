@@ -1,24 +1,19 @@
 # Releases
 
-Every push to `master` that touches code runs `.github/workflows/release.yml`: it builds and tests on a macOS runner. **A release is published only when the signing secrets exist.** Without them the run still builds and tests, finishes green, and prints a notice.
+Every push to `master` that touches code runs `.github/workflows/release.yml`: it builds, tests and publishes a release (see below).
 
-## Secrets (repository → Settings → Environments → `release`)
-| Secret | What |
-|---|---|
-| `DEVELOPER_ID_CERT_P12_BASE64` | Developer ID Application certificate with its private key, exported as .p12 and base64-encoded |
-| `DEVELOPER_ID_CERT_PASSWORD` | Password of that .p12 |
-| `DEVELOPER_ID_IDENTITY` | Certificate name, e.g. `Developer ID Application: Name (TEAMID)` |
-| `NOTARY_API_KEY_P8_BASE64` | App Store Connect API key (.p8), base64-encoded |
-| `NOTARY_API_KEY_ID` / `NOTARY_API_ISSUER_ID` | The key's id and issuer id |
-| `REGISTRY_SIGNING_KEY_PEM` | Ed25519 private key that signs `plugins.json` (registry workflow); create with `scripts/make-registry-key.sh` |
-| `SPARKLE_ED_PRIVATE_KEY` | EdDSA private key that signs app updates (see below) |
+## Modelo de publicación (sin cuenta de pago de Apple)
+Cada push a `master` que toque código construye, prueba y **publica siempre** un release de GitHub: `MacHID-<version>.dmg` (firma ad hoc, sin notarizar), `machid-<version>-macos-arm64.zip` y `SHA256SUMS`, más `appcast.xml` si existe el secreto de Sparkle. La versión es `VERSION` (`MAJOR.MINOR`) más el número de commits. No hace falta ningún secreto para publicar.
 
-Repository **variables** (not secrets): `REGISTRY_PUBLIC_KEY` (printed by `make-registry-key.sh`) and `SPARKLE_PUBLIC_KEY`.
+Primera instalación: Gatekeeper bloqueará la app (no está notarizada). El usuario hace clic derecho en `MacHID.app` > Abrir, o Ajustes del Sistema > Privacidad y seguridad > "Abrir igualmente". Las actualizaciones posteriores las instala Sparkle y no llevan cuarentena, así que Gatekeeper no vuelve a preguntar.
 
-Protect the `release` environment (required reviewers, restricted to `master`). Forks never receive these secrets.
+## Configuración única para que el autoupdate funcione
+La clave pública de Sparkle está en `Resources/sparkle-public-key.txt` (no es secreto; `make-app.sh` la incrusta). Falta solo el secreto privado:
+1. Secreto de repositorio `SPARKLE_ED_PRIVATE_KEY` (Settings > Secrets and variables > Actions) con el contenido de la clave privada (`generate_keys -x archivo`).
+2. Haz copia privada de esa clave y borra el archivo exportado. Si se pierde, las instalaciones existentes no podrán actualizarse con otra clave.
+Sin el secreto el release se publica igual pero sin `appcast.xml`: las apps instaladas no verán la actualización (el workflow avisa con un warning).
 
-## What a release contains
-`MacHID-<version>.dmg` (signed, notarized, stapled), `machid-<version>-macos-arm64.zip` (signed, notarized) and `SHA256SUMS`. The version is `VERSION` (`MAJOR.MINOR`) plus the commit count.
+Opcional: variable `REGISTRY_PUBLIC_KEY` y secreto `REGISTRY_SIGNING_KEY_PEM` para el registro de plugins (ver `scripts/make-registry-key.sh`).
 
 ## Building the app locally
 ```
@@ -32,10 +27,3 @@ Back up the Developer ID certificate and the registry signing key outside GitHub
 
 ## Auto-update of the app
 MacHID updates itself with [Sparkle](https://sparkle-project.org). Each release publishes `appcast.xml` next to the DMG; the app reads `https://github.com/erostalevi/MacHID/releases/latest/download/appcast.xml` and installs an update only if its EdDSA signature matches the key built into the app. Registry releases are marked "not latest", so "latest" always means the newest app release.
-
-One-time setup:
-1. Build the tools once: `swift package --scratch-path /tmp/machid-build resolve`, then run `/tmp/machid-build/artifacts/sparkle/Sparkle/bin/generate_keys`. It stores the private key in your login keychain and prints the public key.
-2. Set the repository variable `SPARKLE_PUBLIC_KEY` to that public key.
-3. Export the private key with `generate_keys -x sparkle-private-key`, store its contents as the secret `SPARKLE_ED_PRIVATE_KEY` in the `release` environment, keep a private backup, and delete the exported file.
-
-Losing the private key means existing installs can never be updated by a new key: they would have to download a release by hand. A build made without `SPARKLE_PUBLIC_KEY` (such as a local one) has updating switched off.

@@ -43,6 +43,8 @@ REGISTRY_KEY_PLIST=""
 # Updates are installed only if signed with the project's EdDSA key (see docs/RELEASE.md). Without the key the app
 # has updating switched off.
 UPDATE_PLIST=""
+# The public key is not a secret: it ships in the repository so every build can verify updates.
+SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-$(tr -d '[:space:]' < "$ROOT/Resources/sparkle-public-key.txt" 2>/dev/null || true)}"
 if [ -n "${SPARKLE_PUBLIC_KEY:-}" ]; then
   UPDATE_PLIST="  <key>SUFeedURL</key><string>${SPARKLE_FEED_URL:-https://github.com/erostalevi/MacHID/releases/latest/download/appcast.xml}</string>
   <key>SUPublicEDKey</key><string>${SPARKLE_PUBLIC_KEY}</string>
